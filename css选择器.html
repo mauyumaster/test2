@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>css选择器</title>
+  <style>
+    
+    /* 优先级：元素<类<id */
+    /*元素选择器*/
+    h2{
+        color: aqua;
+    }
+    /*类选择器*/
+    .highlight{
+        background-color: antiquewhite;
+    }
+    /*id选择器*/
+    #h4id{
+        font-size: 60px;
+    }
+    /*通用选择器*/
+    *{
+        font-family:"Source Han Serif K VF";
+    }
+    /*子元素选择器*/
+    .father>.son{
+        color:red;
+        font-weight: bold;
+    }
+    .father>#son2{
+        color:greenyellow;
+        background-color: rebeccapurple;
+    }
+    /*后代选择器*/
+    .father p{
+        color: aqua;
+    }
+    /*相邻选择器*/
+    h3+p{
+        background-color: green;
+    }
+    /*伪类选择器*/
+    #伪类:hover{
+        background-color: coral;
+    }
+    
+  </style>
+</head>
+<body>
+  <h1>不同类型的css选择器</h1>
+  
+  <h2>这是一个元素选择器示例</h2>
+  <hr>
+  <h3 class="highlight">这是一个类选择器示例</h3>
+  <h3>这是另一个类选择器</h3>
+  <hr>
+  <h4 id="h4id">这是一个id选择器示例</h4>
+  <hr>
+  <div class="father">
+    <p class="son">这是一个子元素选择器示例</p>
+    <p id="son2">这是第二个子元素选择器示例</p>
+    <div>
+      <p class="grandson">这是一个后代选择器示例</p>
+    </div>
+  </div>
+  
+  <p>一个普通p标签</p>
+  <h3>这是一个相邻元素选择器示例</h3>
+  <p>一个相邻的p标签</p>
+  <hr>
+  
+  <h3 id="伪类">这是一个伪类选择器示例</h3>
+</body>
+</html>
