@@ -9,9 +9,18 @@
           margin: 0;
       }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./Library/three.js-r174/build/three.module.js",
+        "three/addons/": "./Library/three.js-r174/examples/jsm/"
+      }
+    }
+    </script>
 </head>
 
 <body>
+  <canvas id="canvas"></canvas>
   <script type="module" src="main.js"></script>
 </body>
 
