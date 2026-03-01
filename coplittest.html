@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>8bit风格贪吃蛇（连续蛇身+BGM）</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background: #16161e;
+            color: #ffeec3;
+            font-family: 'Press Start 2P', 'Segoe UI', Arial, sans-serif;
+            text-align: center;
+        }
+
+        .container {
+            background: #22234d;
+            padding: 30px 40px 38px 40px;
+            border-radius: 22px;
+            display: inline-block;
+            margin-top: 32px;
+            box-shadow: 0 7px 38px #000a;
+            border: 3px solid #fff9;
+        }
+
+        h1 {
+            color: #ff914d;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        #score {
+            font-size: 1.14rem;
+            margin: 13px;
+            color: #27ff82;
+            font-family: 'Press Start 2P', sans-serif;
+        }
+
+        canvas {
+            background: #2a2443;
+            border-radius: 10px;
+            border: 2px solid #fff4;
+            margin: 0 auto;
+            display: block;
+        }
+
+        #restartBtn {
+            background: #ff914d;
+            color: #22234d;
+            font-family: 'Press Start 2P', sans-serif;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 30px;
+            font-size: .96rem;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-bottom: 0;
+            box-shadow: 0 2px 8px #0002;
+            transition: background 0.2s;
+        }
+
+        #restartBtn:hover {
+            background: #ffc17c;
+        }
+
+        #tip {
+            font-family: 'Press Start 2P', sans-serif;
+            font-size: .92rem;
+            margin-top: 10px;
+            margin-bottom: 0;
+            color: #eedcff;
+            word-break: break-all;
+        }
+
+        #musicBtn {
+            background: #27ff82;
+            color: #2a2443;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 18px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-family: 'Press Start 2P', sans-serif;
+            margin-bottom: 16px;
+            margin-top: 0;
+            margin-left: 0;
+            box-shadow: 0 2px 8px #0001;
+            transition: background 0.2s;
+        }
+
+        #musicBtn:hover {
+            background: #6affc5;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>贪吃蛇8bit风格</h1>
+        <button id="musicBtn">播放/暂停BGM</button>
+        <div id="score">分数: 0</div>
+        <canvas id="game" width="480" height="480"></canvas>
+        <button id="restartBtn" style="display:none;">重新开始</button>
+        <div id="tip">用 <b>方向键</b> 或 <b>WASD</b> 控制移动</div>
+    </div>
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const gridSize = 24;  // 24x24格
+        const tileSize = canvas.width / gridSize;
+        let snake, dir, nextDir, food, score, alive, moveInterval = 60;
+        let lastMoveTime = 0;
+
+        function randomFood() {
+            while (true) {
+                let fx = Math.floor(Math.random() * gridSize);
+                let fy = Math.floor(Math.random() * gridSize);
+                if (!snake.some(seg => Math.abs(seg.x - fx) < 1 && Math.abs(seg.y - fy) < 1)) {
+                    return { x: fx, y: fy };
+                }
+            }
+        }
+
+        function init() {
+            snake = [];
+            for (let i = 8; i >= 2; i--) snake.push({ x: i, y: 12 });
+            dir = "RIGHT";
+            nextDir = dir;
+            food = randomFood();
+            score = 0;
+            alive = true;
+            document.getElementById("restartBtn").style.display = "none";
+            updateScore();
+            lastMoveTime = performance.now();
+            requestAnimationFrame(gameLoop);
+            draw();
+        }
+
+        function gameLoop(ts) {
+            if (!alive) return;
+            if (ts - lastMoveTime >= moveInterval) {
+                moveSnake();
+                checkCollision();
+                lastMoveTime = ts;
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function moveSnake() {
+            let head = { ...snake[0] };
+            dir = nextDir;
+            if (dir === "UP") head.y -= 1;
+            else if (dir === "DOWN") head.y += 1;
+            else if (dir === "LEFT") head.x -= 1;
+            else if (dir === "RIGHT") head.x += 1;
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                food = randomFood();
+                updateScore();
+                // 音效
+                playEatSound();
+            } else {
+                snake.pop();
+            }
+        }
+
+        function checkCollision() {
+            let head = snake[0];
+            if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
+                die(); return;
+            }
+            for (let i = 1; i < snake.length; ++i) {
+                if (Math.abs(snake[i].x - head.x) < 1 && Math.abs(snake[i].y - head.y) < 1) {
+                    die(); return;
+                }
+            }
+        }
+
+        function die() {
+            alive = false;
+            document.getElementById("restartBtn").style.display = "inline-block";
+            draw(true);
+            playGameOver();
+        }
+
+        // 连续蛇身渲染
+        function draw(gameOver = false) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 经典8bit棋盘背景
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    if ((i + j) % 2 === 0) {
+                        ctx.fillStyle = "#252745";
+                        ctx.fillRect(i * tileSize, j * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+            // 食物像素风
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(food.x * tileSize + 3, food.y * tileSize + 3, tileSize - 6, tileSize - 6);
+            ctx.fillStyle = "#ffe100";
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#ff1450";
+            ctx.stroke();
+            ctx.restore();
+
+            // 连续蛇身
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(
+                snake[0].x * tileSize + tileSize / 2,
+                snake[0].y * tileSize + tileSize / 2
+            );
+            for (let i = 1; i < snake.length; i++) {
+                ctx.lineTo(
+                    snake[i].x * tileSize + tileSize / 2,
+                    snake[i].y * tileSize + tileSize / 2
+                );
+            }
+            let grad = ctx.createLinearGradient(
+                snake[0].x * tileSize, snake[0].y * tileSize,
+                snake[snake.length - 1].x * tileSize, snake[snake.length - 1].y * tileSize
+            );
+            grad.addColorStop(0, "#ff914d");
+            grad.addColorStop(0.40, "#27ff82");
+            grad.addColorStop(0.8, "#32cfff");
+            grad.addColorStop(1, "#c792ff");
+            ctx.lineWidth = tileSize * .82;
+            ctx.shadowColor = "#8ce4fa";
+            ctx.shadowBlur = 16;
+            ctx.strokeStyle = grad;
+            ctx.stroke();
+            ctx.closePath();
+            ctx.restore();
+
+            // 蛇头像素风
+            let xh = snake[0].x * tileSize, yh = snake[0].y * tileSize;
+            ctx.save();
+            ctx.strokeStyle = "#fff9";
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.rect(xh + tileSize / 6, yh + tileSize / 6, tileSize * 0.68, tileSize * 0.68);
+            ctx.fillStyle = "#ff914d";
+            ctx.shadowColor = "#ffe100";
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.stroke();
+            ctx.closePath();
+            // 眼睛
+            ctx.fillStyle = "#222";
+            ctx.fillRect(xh + tileSize * 0.62, yh + tileSize * 0.34, tileSize / 9, tileSize / 9);
+            ctx.fillRect(xh + tileSize * 0.42, yh + tileSize * 0.34, tileSize / 9, tileSize / 9);
+            ctx.restore();
+
+            // 死亡
+            if (gameOver) {
+                ctx.save();
+                ctx.globalAlpha = 0.94;
+                ctx.fillStyle = "#160225e0";
+                ctx.fillRect(0, canvas.height / 2 - 50, canvas.width, 110);
+                ctx.restore();
+                ctx.font = "bold 34px 'Press Start 2P', cursive";
+                ctx.fillStyle = "#ff914d";
+                ctx.textAlign = "center";
+                ctx.fillText("游戏结束!", canvas.width / 2, canvas.height / 2);
+                ctx.font = "18px Arial";
+                ctx.fillStyle = "#ffee70";
+                ctx.fillText("分数：" + score, canvas.width / 2, canvas.height / 2 + 33);
+            }
+        }
+
+        function updateScore() {
+            document.getElementById("score").textContent = "分数: " + score;
+        }
+
+        // 方向控制，防止反向自杀
+        window.addEventListener("keydown", function (e) {
+            if (!alive) return;
+            const key = e.key;
+            let lastDir = dir;
+            if ((key === "ArrowUp" || key === "w" || key === "W") && lastDir !== "DOWN")
+                nextDir = "UP";
+            else if ((key === "ArrowDown" || key === "s" || key === "S") && lastDir !== "UP")
+                nextDir = "DOWN";
+            else if ((key === "ArrowLeft" || key === "a" || key === "A") && lastDir !== "RIGHT")
+                nextDir = "LEFT";
+            else if ((key === "ArrowRight" || key === "d" || key === "D") && lastDir !== "LEFT")
+                nextDir = "RIGHT";
+        });
+
+        document.getElementById("restartBtn").onclick = init;
+
+        // 8-bit风格BGM+音效（通过WebAudio API生成chip-tune音乐）
+        // 简易loop 8bit tune
+        let audioCtx = null;
+        let bgmSource = null;
+        let bgmPlaying = false;
+        function playBGM() {
+            if (bgmPlaying) return;
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            let ctx = audioCtx;
+            let duration = 4; // seconds/loop
+            let beatLen = .22, melodyLen = 8;
+            let melody = [ // 8bit经典音阶
+                523, 523, 659, 587, 523, 784, 698, 659
+            ]; // C5 C5 E5 D5 C5 G5 F5 E5
+            let track = ctx.createOscillator();
+            let gain = ctx.createGain();
+            track.type = 'square';
+            gain.gain.value = .19;
+            track.connect(gain).connect(ctx.destination);
+
+            // 音符时序
+            let now = ctx.currentTime;
+            for (let i = 0; i < melodyLen * 3; i++) {
+                const t = i / 4;
+                const idx = i % melodyLen;
+                track.frequency.setValueAtTime(melody[idx], now + t);
+                gain.gain.setValueAtTime(.18, now + t);
+                gain.gain.linearRampToValueAtTime(.12, now + t + beatLen / 2);
+                gain.gain.linearRampToValueAtTime(.18, now + t + beatLen);
+            }
+            track.start(now);
+            track.stop(now + duration);
+            track.onended = function () {
+                bgmSource = null; bgmPlaying = false;
+                if (bgmLoopRequested) {
+                    playBGM();
+                }
+            };
+            bgmSource = track;
+            bgmPlaying = true;
+        }
+
+        function stopBGM() {
+            if (bgmSource) {
+                bgmLoopRequested = false;
+                bgmSource.stop();
+                bgmSource = null;
+                bgmPlaying = false;
+            }
+        }
+        let bgmLoopRequested = false;
+        const musicBtn = document.getElementById('musicBtn');
+        musicBtn.onclick = function () {
+            bgmLoopRequested = !bgmLoopRequested;
+            if (bgmLoopRequested) {
+                playBGM();
+                musicBtn.textContent = "暂停BGM";
+            } else {
+                stopBGM();
+                musicBtn.textContent = "播放BGM";
+            }
+        }
+
+        // 食物音效和gameover音效
+        function playEatSound() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let osc = audioCtx.createOscillator();
+            let g = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 880;
+            g.gain.value = .13;
+            osc.connect(g).connect(audioCtx.destination);
+            osc.start();
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime + .05);
+            osc.frequency.setValueAtTime(1200, audioCtx.currentTime + .10);
+            osc.stop(audioCtx.currentTime + .14);
+        }
+        function playGameOver() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let osc = audioCtx.createOscillator();
+            let g = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = 160;
+            g.gain.value = .17;
+            osc.connect(g).connect(audioCtx.destination);
+            osc.start();
+            osc.frequency.setValueAtTime(120, audioCtx.currentTime + .05);
+            osc.frequency.setValueAtTime(60, audioCtx.currentTime + .20);
+            g.gain.setValueAtTime(.17, audioCtx.currentTime + .26);
+            g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + .36);
+            osc.stop(audioCtx.currentTime + .38);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
