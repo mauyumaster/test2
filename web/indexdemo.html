@@ -131,9 +131,13 @@
         let nebulaPoints; // 存放星云粒子系统
 
         let currentGalaxyData = []; // [新增] 用于持久化存储解析后的 CSV 数据
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         function init() {
             // 场景与相机
+            // 1. 在配置中心添加移动端检测
+            // const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
             scene = new THREE.Scene();
             scene.background = new THREE.Color(GALAXY_CONFIG.bgColor);
             scene.fog = new THREE.FogExp2(GALAXY_CONFIG.bgColor, GALAXY_CONFIG.fogDensity);
@@ -217,7 +221,6 @@
         }
 
         function createGalaxy(data) {
-            // 1. 清理旧对象 (保持不变)
             // 1. 清理旧对象 (必须确保从场景中移除并置空)
             if (points) {
                 scene.remove(points);
@@ -245,6 +248,8 @@
                 starColors.push(color.r, color.g, color.b);
 
                 // 星云数据：根据 countMultiplier 概率生成
+                const multiplier = isMobile ? GALAXY_CONFIG.nebula.countMultiplier * 0.3 : GALAXY_CONFIG.nebula.countMultiplier;
+
                 if (Math.random() < GALAXY_CONFIG.nebula.countMultiplier) {
                     nebulaPositions.push(
                         d.x + (Math.random() - 0.5) * 15,
@@ -377,7 +382,12 @@
                 nebulaPoints.rotation.y += GALAXY_CONFIG.autoRotation;
 
             }
-            composer.render();
+            // 2. 关键修改：如果是手机，跳过 composer 渲染，直接渲染原始场景
+            if (isMobile) {
+                renderer.render(scene, camera);
+            } else {
+                composer.render();
+            }
         }
 
         init();
