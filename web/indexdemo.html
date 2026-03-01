@@ -81,6 +81,7 @@
         // 核心参数设置中心 (修改这里即可调整视觉效果)
         // ==========================================
         const GALAXY_CONFIG = {
+            csvUrl: './spatial_data_tsne.txt', // 这里填写你导出的 CSV 文件名
             // 空间布局
             spread: 12,               // 星系伸展规模 (坐标放大倍数)
             autoRotation: 0.0001,     // 整体自转速度
@@ -115,7 +116,7 @@
                 countMultiplier: 0.2,   // 星云点相对于恒星点的数量比例
                 spriteUrl: './resouce/xingchen.png' // 使用更模糊的球体纹理
             }
- 
+
         };
 
         const EXPLORE_CONFIG = {
@@ -168,6 +169,38 @@
             animate();
         }
 
+        // 新增：自动加载逻辑
+        async function loadInitialData() {
+            try {
+                const statusEl = document.getElementById('status');
+                statusEl.innerText = "正在同步星图数据...";
+                // 1. 发起请求
+                const response = await fetch(GALAXY_CONFIG.csvUrl);
+                // 2. 检查响应状态
+                if (!response.ok) {
+                    throw new Error(`网络响应异常: ${response.status}`);
+                }
+                // 3. 读取文本
+                const csvText = await response.text();
+
+                // 4. 解析并生成星系
+                currentGalaxyData = parseCSV(csvText);
+
+                // 生成星系
+                createGalaxy(currentGalaxyData);
+
+                if (currentGalaxyData && currentGalaxyData.length > 0) {
+                    createGalaxy(currentGalaxyData);
+                    statusEl.innerText = `星图载入成功：共 ${currentGalaxyData.length} 个节点`;
+                } else {
+                    statusEl.innerText = "错误：CSV 内容格式不正确";
+                }
+            } catch (error) {
+                console.error("加载失败:", error);
+                document.getElementById('status').innerText = "加载失败，请按 F12 查看控制台报错";
+            }
+        }
+
         function parseCSV(text) {
             const lines = text.split('\n').slice(1);
             return lines.map(line => {
@@ -184,8 +217,8 @@
         }
 
         function createGalaxy(data) {
-                // 1. 清理旧对象 (保持不变)
-                // 1. 清理旧对象 (必须确保从场景中移除并置空)
+            // 1. 清理旧对象 (保持不变)
+            // 1. 清理旧对象 (必须确保从场景中移除并置空)
             if (points) {
                 scene.remove(points);
                 points.geometry.dispose();
@@ -199,48 +232,48 @@
                 nebulaPoints = null;
             }
 
-                const starPositions = [];
-                const starColors = [];
-                const nebulaPositions = [];
-                const nebulaColors = [];
+            const starPositions = [];
+            const starColors = [];
+            const nebulaPositions = [];
+            const nebulaColors = [];
 
-                data.forEach((d, index) => {
-                    const color = new THREE.Color(GALAXY_CONFIG.palette[d.cluster % GALAXY_CONFIG.palette.length]);
+            data.forEach((d, index) => {
+                const color = new THREE.Color(GALAXY_CONFIG.palette[d.cluster % GALAXY_CONFIG.palette.length]);
 
-                    // 恒星数据 (保持不变)
-                    starPositions.push(d.x, d.y, d.z);
-                    starColors.push(color.r, color.g, color.b);
+                // 恒星数据 (保持不变)
+                starPositions.push(d.x, d.y, d.z);
+                starColors.push(color.r, color.g, color.b);
 
-                    // 星云数据：根据 countMultiplier 概率生成
-                    if (Math.random() < GALAXY_CONFIG.nebula.countMultiplier) {
-                        nebulaPositions.push(
-                            d.x + (Math.random() - 0.5) * 15,
-                            d.y + (Math.random() - 0.5) * 15,
-                            d.z + (Math.random() - 0.5) * 15
-                        );
-                        nebulaColors.push(color.r, color.g, color.b);
-                    }
-                });
+                // 星云数据：根据 countMultiplier 概率生成
+                if (Math.random() < GALAXY_CONFIG.nebula.countMultiplier) {
+                    nebulaPositions.push(
+                        d.x + (Math.random() - 0.5) * 15,
+                        d.y + (Math.random() - 0.5) * 15,
+                        d.z + (Math.random() - 0.5) * 15
+                    );
+                    nebulaColors.push(color.r, color.g, color.b);
+                }
+            });
 
-                const texLoader = new THREE.TextureLoader();
+            const texLoader = new THREE.TextureLoader();
 
-                // --- A. 恒星层 (保持不变) ---
-                const starGeo = new THREE.BufferGeometry();
-                starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-                starGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
-                const starMat = new THREE.PointsMaterial({
-                    size: GALAXY_CONFIG.pointSize,
-                    map: texLoader.load(GALAXY_CONFIG.spriteUrl),
-                    transparent: true,
-                    vertexColors: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    sizeAttenuation: true
-                });
-                points = new THREE.Points(starGeo, starMat);
-                scene.add(points);
+            // --- A. 恒星层 (保持不变) ---
+            const starGeo = new THREE.BufferGeometry();
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+            starGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+            const starMat = new THREE.PointsMaterial({
+                size: GALAXY_CONFIG.pointSize,
+                map: texLoader.load(GALAXY_CONFIG.spriteUrl),
+                transparent: true,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                sizeAttenuation: true
+            });
+            points = new THREE.Points(starGeo, starMat);
+            scene.add(points);
 
-                // --- B. 星云层 (回归标准 PointsMaterial) ---
+            // --- B. 星云层 (回归标准 PointsMaterial) ---
             if (nebulaPositions.length > 0) {
                 const nebulaGeo = new THREE.BufferGeometry();
                 nebulaGeo.setAttribute('position', new THREE.Float32BufferAttribute(nebulaPositions, 3));
@@ -260,42 +293,42 @@
                 });
                 nebulaPoints = new THREE.Points(nebulaGeo, nebulaMat);
                 scene.add(nebulaPoints);
-                }
-
-                starGeo.computeBoundingSphere();
-                const center = starGeo.boundingSphere.center;
-                controls.target.copy(center);
             }
-        
+
+            starGeo.computeBoundingSphere();
+            const center = starGeo.boundingSphere.center;
+            controls.target.copy(center);
+        }
+
         function jumpToRandomStar() {
-                if (!currentGalaxyData || currentGalaxyData.length === 0) {
-                    alert("请先上传 CSV 数据！");
-                    return;
-                }
-
-                // 随机选取一个星系
-                const randomIndex = Math.floor(Math.random() * currentGalaxyData.length);
-                const star = currentGalaxyData[randomIndex];
-
-                // 设置新的旋转中心 (Target)
-                const targetPos = new THREE.Vector3(star.x, star.y, star.z);
-                controls.target.copy(targetPos);
-
-                // 设置相机位置 (第三人称悬停)
-                // 距离可以根据 GALAXY_CONFIG.nebula.size 灵活调整
-                camera.position.set(
-                    star.x + 30,
-                    star.y + 30,
-                    star.z + 30
-                );
-
-                // 更新 UI 显示当前正在观察的文物
-                const fileName = star.path.split(/[\\/]/).pop(); // 兼容不同系统的路径分隔符
-                document.getElementById('status').innerText = `当前坐标锁定：${fileName}`;
-
-                // 强制更新控制器
-                controls.update();
+            if (!currentGalaxyData || currentGalaxyData.length === 0) {
+                alert("请先上传 CSV 数据！");
+                return;
             }
+
+            // 随机选取一个星系
+            const randomIndex = Math.floor(Math.random() * currentGalaxyData.length);
+            const star = currentGalaxyData[randomIndex];
+
+            // 设置新的旋转中心 (Target)
+            const targetPos = new THREE.Vector3(star.x, star.y, star.z);
+            controls.target.copy(targetPos);
+
+            // 设置相机位置 (第三人称悬停)
+            // 距离可以根据 GALAXY_CONFIG.nebula.size 灵活调整
+            camera.position.set(
+                star.x + 30,
+                star.y + 30,
+                star.z + 30
+            );
+
+            // 更新 UI 显示当前正在观察的文物
+            const fileName = star.path.split(/[\\/]/).pop(); // 兼容不同系统的路径分隔符
+            document.getElementById('status').innerText = `当前坐标锁定：${fileName}`;
+
+            // 强制更新控制器
+            controls.update();
+        }
         // 事件监听
         document.getElementById('csvFile').addEventListener('change', function (e) {
             const file = e.target.files[0];
@@ -311,20 +344,20 @@
         });
 
         document.getElementById('modeBtn').addEventListener('click', () => {
-                EXPLORE_CONFIG.isExploreMode = !EXPLORE_CONFIG.isExploreMode;
+            EXPLORE_CONFIG.isExploreMode = !EXPLORE_CONFIG.isExploreMode;
 
-                if (EXPLORE_CONFIG.isExploreMode) {
-                    document.getElementById('modeBtn').innerText = "返回总览模式";
-                    // 假设你把 parseCSV 处理后的 data 存为了全局变量 currentGalaxyData
-                    jumpToRandomStar(currentGalaxyData);
-                } else {
-                    document.getElementById('modeBtn').innerText = "开启探索模式";
-                    // 返回中心
-                    const center = points.geometry.boundingSphere.center;
-                    controls.target.copy(center);
-                    camera.position.set(200, 200, 500);
-                }
-            });
+            if (EXPLORE_CONFIG.isExploreMode) {
+                document.getElementById('modeBtn').innerText = "返回总览模式";
+                // 假设你把 parseCSV 处理后的 data 存为了全局变量 currentGalaxyData
+                jumpToRandomStar(currentGalaxyData);
+            } else {
+                document.getElementById('modeBtn').innerText = "开启探索模式";
+                // 返回中心
+                const center = points.geometry.boundingSphere.center;
+                controls.target.copy(center);
+                camera.position.set(200, 200, 500);
+            }
+        });
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -336,18 +369,19 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
-            
+
             if (points) {
                 points.rotation.y += GALAXY_CONFIG.autoRotation;
             }
             if (nebulaPoints) {
                 nebulaPoints.rotation.y += GALAXY_CONFIG.autoRotation;
-                
+
             }
             composer.render();
         }
 
         init();
+        loadInitialData(); // 启动后立即自动加载
     </script>
 </body>
 
