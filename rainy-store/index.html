@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>雨夜便利店街角 · 微缩模型</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#05070d;}
+  body{cursor:grab;}
+  body.dragging{cursor:grabbing;}
+  canvas{display:block;touch-action:none;}
+  #cover{position:fixed;inset:0;background:#05070d;z-index:9;pointer-events:none;
+         transition:opacity 1200ms ease;opacity:1;}
+  #cover.gone{opacity:0;}
+  #fallback{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+            color:#8fa3c8;font:14px/1.7 -apple-system,"Microsoft YaHei",sans-serif;text-align:center;}
+</style>
+</head>
+<body>
+<div id="fallback">此页面需要 WebGL 支持，请使用较新的 Chrome / Edge / Safari 打开。</div>
+<div id="cover"></div>
+
+<script>
+// 不可见的错误捕获（仅改写标题，不产生任何界面元素）
+window.addEventListener('error', function (e) {
+  document.title = 'ERR|' + (e.message || 'unknown') + '|' + String(e.filename || '').split('/').pop() + ':' + e.lineno;
+});
+</script>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+
+<script src="js/00_core.js"></script>
+<script src="js/10_store.js"></script>
+<script src="js/20_interior.js"></script>
+<script src="js/30_street.js"></script>
+<script src="js/40_weather.js"></script>
+<script src="js/90_main.js"></script>
+</body>
+</html>
