@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>凌晨两点零七分 · 便利店</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/world.css">
+</head>
+<body class="mode-create">
+
+<div id="cover">
+  <div class="cv-in">
+    <div class="cv-t">凌晨两点零七分</div>
+    <div class="cv-s">便利店</div>
+    <div class="cv-bar"><i></i></div>
+  </div>
+</div>
+
+<div id="hud"></div>
+<div id="hint">WASD 走　·　左键拖动转视角（俯角固定）　·　点地面走过去　·　点光点或按 E　·　M 静音　·　N 音乐</div>
+<!-- 这行不能再长了。提示条是 nowrap + 底部居中，加宽一寸就会被左边的
+     技能栏和建卡卡片压掉两头的字（自检第 10 项专管这件事）。
+     注意它现在左边是场景、右边是常驻文字栏，所以贴左不贴右。 -->
+<div id="hint-create">↑↓ 调四维属性　·　点技能名后的「◆」定锚<br>完成后点金色按钮或按 Enter　·　M 静音　·　N 音乐</div>
+<div id="notice"></div>
+<div id="marks"></div>
+
+<aside id="panel" class="col"></aside>
+<aside id="side" class="col"></aside>
+<main id="stage" class="col"></main>
+
+<div id="overlay" class="hidden"><div id="rollbox"></div></div>
+<div id="toast" class="hidden"></div>
+
+<script src="vendor/three.min.js"></script>
+
+<!-- 场景：来自「雨夜便利店街角模型」，可玩版改动了相机与门的驱动方式 -->
+<script src="scene/00_core.js"></script>
+<script src="scene/10_store.js"></script>
+<script src="scene/20_interior.js"></script>
+<script src="scene/30_street.js"></script>
+<script src="scene/40_weather.js"></script>
+
+<!-- 文本：五卷节点 + 空间专属节点 + 引文库 -->
+<script src="js/00_data.js"></script>
+<script src="js/03_refs.js"></script>
+<script src="js/04_books.js"></script>
+<script src="js/05a_gate.js"></script>
+<script src="js/05b_store.js"></script>
+<script src="js/05c_mind.js"></script>
+<script src="js/05d_talk.js"></script>
+<script src="js/05e_old.js"></script>
+<script src="js/05f_end.js"></script>
+<script src="js/06_spatial.js"></script>
+<script src="js/05_scene.js"></script>
+
+<!-- 引擎与界面 -->
+<script src="js/10_engine.js"></script>
+<script src="js/20_ui.js"></script>
+<script src="js/30_flow.js"></script>
+<script src="js/40_world.js"></script>
+
+<!-- 可玩版新增：补建物件 / 行走 / 热点 / 状态机 -->
+<script src="js/42_props.js"></script>
+<script src="js/45_walk.js"></script>
+<script src="js/50_reticle.js"></script>
+<script src="js/60_loop.js"></script>
+<script src="js/70_audio.js"></script>
+<script src="js/71_music.js"></script>
+<script src="js/90_main.js"></script>
+</body>
+</html>

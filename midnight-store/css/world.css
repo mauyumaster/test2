@@ -1,0 +1,389 @@
+/* ===========================================================
+   world.css  ——  可玩版的场景层
+   ------------------------------------------------------------
+   叠在 style.css 之上（后者管文本排版与配色，这里管「三栏变成
+   一层场景 + 三个可收起的浮层」）。
+
+   几种状态由 body 的类切换：
+     .mode-create   建卡：技能栏在左，开场卡居中
+     .mode-scene    在走：只有 HUD 和热点，底部没有对话框
+     .mode-dialog   在读：对话框从底部升起，热点层隐藏
+
+   三条已知的无头截图坑，这里都避开了：
+     · 不用 inset 简写
+     · 不用 backdrop-filter
+     · 不写「从 opacity:0 开始」的入场动画（浮层会在截图里整个消失）
+       —— 需要出现/消失的一律用 transform + display。
+   =========================================================== */
+
+/* 左栏宽度提成变量：建卡模式下底部那条提示条要知道「左栏有多宽」，
+   才能把自己在「左栏右边那块空地」里居中。写死两个宽度会在窄屏上
+   差出几十像素 —— 760px 宽的窗口里提示条左半截会钻到技能栏底下
+   （实测在 736×384 下重叠 5258px²，1280×800 下完全看不出来）。 */
+:root { --panelw: 328px; }
+
+/* ---------------- 画布：铺满，压在最底层 ---------------- */
+body > canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+  z-index: 0;
+}
+body.dragging { cursor: grabbing; }
+/* 俯视第三人称里没有准星了 —— 交互靠点光点/点地面，不是「对准」。
+   十字准星光标会暗示一个不存在的瞄准动作。 */
+body.mode-scene > canvas { cursor: default; }
+
+/* ---------------- 开机遮罩 ---------------- */
+#cover {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  background: #06080c;
+  transition: opacity .55s ease;
+}
+#cover.gone { opacity: 0; pointer-events: none; }
+.cv-in { text-align: center; }
+.cv-t {
+  font-family: var(--serif); font-size: 40px; letter-spacing: .34em;
+  color: var(--gold); text-indent: .34em;
+}
+.cv-s { margin-top: 10px; font-family: var(--serif); font-size: 17px; letter-spacing: .5em; color: var(--txt2); text-indent: .5em; }
+.cv-bar { margin: 24px auto 0; width: 200px; height: 2px; background: #1b2230; overflow: hidden; }
+.cv-bar i { display: block; width: 38%; height: 100%; background: var(--gold); animation: cvslide 1.15s ease-in-out infinite; }
+@keyframes cvslide { 0% { transform: translateX(-110%); } 100% { transform: translateX(290%); } }
+
+/* ---------------- HUD ----------------
+   底色块不是装饰：开场那个机位正对着发光的店面，纯文字压在亮面上会糊成
+   一片（浅灰 12px 字 + 亮绿雨棚 = 读不出来）。给一层近乎不透明的深夜底色，
+   顺便和底部升起的对话框呼应。
+   注意：无头截图里 backdrop-filter 不可靠，所以用纯色半透明，不写毛玻璃。 */
+#hud {
+  position: fixed; top: 16px; left: 18px; z-index: 25;
+  pointer-events: none;
+  font-size: 12px; letter-spacing: .06em;
+  padding: 10px 15px 10px;
+  border-radius: 10px;
+  background: rgba(6, 9, 14, .74);
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-left: 2px solid rgba(214, 178, 106, .5);
+  transition: opacity .18s ease;
+}
+/* 左栏（技能）打开时，HUD 正好压在它的表头上 —— 收起自己让位。
+   位置是同一个角，靠 z-index 硬顶只会把两行字叠在一起。 */
+#hud.behind { opacity: 0; }
+/* 底部那条操作提示也一样：左栏一开就压在它上面（栏 z-index 32，提示 25）。
+   同一个病因，同一个治法。 */
+#hint.behind { opacity: 0; }
+.hud-region {
+  font-family: var(--serif); font-size: 15px; color: var(--txt);
+  letter-spacing: .16em;
+  text-shadow: 0 1px 10px #000;
+}
+.hud-detail {
+  margin-top: 6px; color: var(--dim);
+  text-shadow: 0 1px 8px #000;
+}
+.hud-detail b { color: var(--gold); font-weight: 600; }
+
+/* 底部操作提示：现在右边多了一条整屏高的常驻栏，提示条必须给它让开。
+   不加这条限制，窄窗口下（758px 宽时右栏仍占 303px）提示条的右半截
+   会钻到栏底下 —— 又一次「元素在、屏幕上没有」。 */
+#hint {
+  position: fixed; left: 18px; bottom: 14px; z-index: 25;
+  pointer-events: none;
+  font-size: 11.5px; color: #98a4b8; letter-spacing: .05em;
+  padding: 7px 13px; border-radius: 14px;
+  background: rgba(6, 9, 14, .82);
+  border: 1px solid rgba(255, 255, 255, .07);
+  max-width: min(600px, calc(100vw - 500px));
+  line-height: 1.7;
+}
+body.mode-dialog #hint { display: none; }
+/* 建卡模式的提示条也占 left:18px / bottom:14px —— 两条会叠在同一个位置。
+   建卡时只留 #hint-create（说怎么开局），走动的那条让位。 */
+body.mode-create #hint { display: none; }
+
+/* 建卡模式：提示条放另一个版本，告诉玩家怎么开局。
+   不要让这个版本在 scene / dialog 模式出现（会被另一条规则挡住）。 */
+/* 建卡时这条要压在建卡卡片和左侧技能栏之上。
+   原先跟着 #hint 放在 left:18px / z-index:25，结果整条被 328px 宽的
+   技能栏（z-index 32→33）盖掉左边一半，只剩「完成后点下方金色按钮…」
+   这半截露在外面。改成底部居中、两行，谁都挡不着。 */
+#hint-create {
+  /* 在「左栏右边那块空地」里居中，而不是在整个视口里居中 ——
+     视口居中在窄屏上会把左半截送到技能栏底下（同一页两块浮层重叠）。 */
+  position: fixed;
+  left: calc(var(--panelw) + (100% - var(--panelw)) / 2);
+  bottom: 18px; transform: translateX(-50%);
+  z-index: 41;
+  pointer-events: none;
+  font-size: 12px; color: #c8b48a; letter-spacing: .08em;
+  line-height: 1.7; text-align: center; white-space: normal;
+  max-width: calc(100% - var(--panelw) - 40px);
+  padding: 9px 20px; border-radius: 12px;
+  background: rgba(6, 9, 14, .86);
+  border: 1px solid rgba(214, 178, 106, .35);
+  display: none;
+}
+body.mode-create #hint-create { display: block; }
+
+#notice {
+  position: fixed; left: 50%; top: 68px; z-index: 45;
+  transform: translateX(-50%);
+  display: none;
+  padding: 9px 18px; border-radius: 20px;
+  background: rgba(14,18,27,.94);
+  border: 1px solid var(--line2);
+  color: var(--txt2); font-size: 13px;
+}
+#notice.show { display: block; }
+
+/* ---------------- 热点标记 ----------------
+   圆点 = 本来就有的东西；菱形 = 因为你在这项技能上看得多，才多出来的东西。 */
+#marks {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mark {
+  position: absolute; top: 0; left: 0;
+  display: flex; align-items: center; gap: 8px;
+  pointer-events: auto; cursor: pointer;
+  padding: 4px;
+  white-space: nowrap;
+}
+.mark.hidden { display: none; }
+
+.mk-dot {
+  flex: none;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #ffd9a0;
+  border: 1px solid rgba(255,246,230,.55);
+  box-shadow: 0 0 12px rgba(255,185,94,.85), 0 0 4px rgba(255,255,255,.5);
+}
+.mark-detail .mk-dot {
+  width: 9px; height: 9px; border-radius: 2px;
+  transform: rotate(45deg);
+  background: #9df0e2;
+  border-color: rgba(220,255,250,.6);
+  box-shadow: 0 0 12px rgba(70,201,180,.9), 0 0 4px rgba(255,255,255,.4);
+}
+
+.mk-label {
+  font-size: 12.5px; letter-spacing: .06em;
+  color: #e7ecf3;
+  padding: 3px 9px;
+  border-radius: 3px;
+  background: rgba(10,13,19,.72);
+  border-left: 2px solid rgba(255,190,110,.75);
+  text-shadow: 0 1px 6px #000;
+}
+.mark-detail .mk-label { border-left-color: rgba(110,230,208,.85); }
+
+/* 够不着：只留一个小点，不给名字 —— 「那边有东西」和「我能碰它」是两回事 */
+.mark.far { cursor: default; }
+.mark.far .mk-dot { transform: scale(.62); box-shadow: 0 0 8px rgba(255,185,94,.55); }
+.mark-detail.far .mk-dot { transform: rotate(45deg) scale(.62); }
+.mark.far .mk-label { display: none; }
+/* 准星指着它，但还没走近：报名字，只是压暗一点 */
+.mark.aim.far .mk-label { display: block; opacity: .72; }
+.mark-need, .mk-need { display: none; }
+
+.mark.near:hover .mk-dot,
+.mark.near.hover .mk-dot { transform: scale(1.5); }
+.mark-detail.near:hover .mk-dot,
+.mark-detail.near.hover .mk-dot { transform: rotate(45deg) scale(1.5); }
+.mark.near:hover .mk-label,
+.mark.near.hover .mk-label { background: rgba(22,28,40,.94); }
+
+/* ---------------- 左栏：技能（可收起） ---------------- */
+#panel {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--panelw); z-index: 32;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #0c1018, #090c12);
+  border-right: 1px solid var(--line);
+  padding: 16px 14px 40px;
+  display: none;
+}
+body.mode-create #panel { display: block; }
+body.mode-scene #panel.open,
+body.mode-dialog #panel.open { display: block; }
+
+/* ---------------- 左栏之二：状态 / 想法 / 日志（可收起） ----------------
+   原来贴在右边（350px），但右边现在归常驻文字栏了。挪到左边与技能栏
+   同侧，并靠 60_loop.js 的 toggle() 保证两块互斥 —— 两块同宽的浮层
+   叠在同一个位置只会变成一坨。 */
+#side {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: 340px; z-index: 32;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #0c1018, #090c12);
+  border-right: 1px solid var(--line);
+  padding: 16px 14px 40px;
+  display: none;
+}
+body.mode-create #side.open,
+body.mode-scene #side.open,
+body.mode-dialog #side.open { display: block; }
+
+/* ---------------- 右侧常驻文字栏（极乐迪斯科式） ----------------
+   对话不再「从底部升起、走开就消失」，而是占住右边一条，走路时也在：
+   左边是空间，右边是文字 —— 「我在哪」和「我在想什么」同时可见。
+   底部的对话框做不到这件事：它一升起就把下半屏的地面全盖掉，
+   而俯视视角里地面恰恰是信息量最大的地方。
+
+   ⚠ 这一条会盖住 #marks（z-index 20 < 40）。场景模式下栏里列着
+   「附近够得着的东西」，是同一批热点的第二个入口，所以不会出现
+   「有个热点被栏压住、点不到」的死角。改栏宽时记得同步
+   00_core.js 的 SB.CAM.lensX（镜头平移量），否则角色会被压到栏下。 */
+#stage {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  /* 40vw 是「跟窗口成比例」，但窄屏上不能低于 300px —— 再窄就放不下
+     一行正文，栏会变成一条谁都读不了的缝。 */
+  width: max(300px, min(430px, 40vw));
+  z-index: 40;
+  display: none;
+  overflow-y: auto;
+  background: linear-gradient(90deg, rgba(11,14,21,.88), rgba(8,10,15,.985));
+  border-left: 1px solid var(--line2);
+  box-shadow: -22px 0 60px rgba(0,0,0,.55);
+  padding: 24px 26px 32px;
+  scrollbar-width: thin;
+}
+body.mode-scene #stage,
+body.mode-dialog #stage { display: block; }
+
+/* ---- 走路时右栏的待机内容：我在哪 / 附近能碰什么 / 怎么操作 ---- */
+.idle-head {
+  font-family: var(--serif); font-size: 19px; letter-spacing: .14em;
+  color: var(--txt);
+}
+.idle-sub { margin-top: 7px; font-size: 12px; color: var(--dim); letter-spacing: .06em; }
+.idle-list { margin-top: 16px; }
+#stage .choice.idle-i {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; margin: 0 0 7px;
+  padding: 11px 14px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.07);
+  border-left: 3px solid rgba(255,190,110,.6);
+  border-radius: 4px;
+  color: var(--txt2); font-size: 13.5px; letter-spacing: .06em;
+}
+#stage .choice.idle-i:hover { background: rgba(214,178,106,.10); color: #f1dcab; border-color: rgba(214,178,106,.5); }
+#stage .choice.idle-detail { border-left-color: rgba(110,230,208,.7); }
+#stage .choice.idle-detail .i-name { color: #9df0e2; }
+.idle-i .i-dist {
+  flex: none; font-family: var(--serif); font-size: 11.5px; color: var(--dim);
+}
+.idle-hint {
+  margin-top: 20px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  font-size: 11px; line-height: 1.9; color: #7f8a9c; letter-spacing: .05em;
+}
+.idle-empty { margin-top: 16px; font-size: 12.5px; color: var(--dim); line-height: 1.85; }
+
+/* 建卡时：#stage 变成一张居中的卡，两侧都不压满。
+   ⚠ 必须显式写 display: block —— #stage 的基础规则是 display: none，
+   只有 mode-dialog 那一条给了 block。少这一行的话，整张建卡卡片
+   （连同「开始」按钮）都不会渲染，玩家打开页面看到的只有左侧技能表
+   和场景，找不到任何入口 —— 表现就是「无法操控」。 */
+body.mode-create #stage {
+  display: block;
+  left: 50%; right: auto;
+  /* 结构性约束，而不是「预留多少像素」：
+     卡片被夹在「视口顶端 → 提示条上边」这条带子里，再用 auto 外边距
+     在带子里居中。预留像素那套（先写 84vh-76px、再改 92px）永远在赌
+     提示条会不会折行 —— 实测 736×384 下提示条折成三行，卡片底边就
+     压了上去，而 1280×800 完全正常。现在重叠在几何上不可能发生。 */
+  top: 0; bottom: 116px;
+  margin: auto 0;
+  width: min(700px, 88vw);
+  max-height: calc(100vh - 124px);
+  overflow-y: auto;
+  transform: translateX(-50%);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7);
+  padding: 26px 30px 28px;
+}
+body.mode-create #panel { z-index: 33; }
+
+/* 关闭全部面板后的提示 */
+.col::after { content: none; }
+
+/* 对话框里的选项按钮：宽度收在同一条轴上，不要横跨整个屏幕 */
+#stage .choice { display: block; width: 100%; text-align: left; }
+
+/* 入场门：建卡面板的「开始」按钮，必须比任何选项都显眼 */
+#stage .choice.begin-cta {
+  margin-top: 26px;
+  padding: 16px 22px;
+  font-size: 15px;
+  letter-spacing: .10em;
+  text-align: center;
+  border: 1px solid var(--gold);
+  border-left: 3px solid var(--gold);
+  color: var(--gold);
+  background: rgba(214, 178, 106, .06);
+  position: relative;
+}
+#stage .choice.begin-cta::before {
+  content: '›';
+  margin-right: 10px;
+  font-size: 18px;
+  opacity: .7;
+}
+#stage .choice.begin-cta:hover {
+  background: rgba(214, 178, 106, .14);
+  color: #f1dcab;
+  border-color: #f1dcab;
+}
+#stage .choice.begin-cta .kbd-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 10.5px;
+  letter-spacing: .22em;
+  color: var(--dim);
+  font-weight: normal;
+}
+
+/* 「回到街面」是出口，不是剧情选项——但它是「真正进入游戏」的门，
+   不能做得太虚。给它一点存在感，加一行简短提示。 */
+#stage .choice.back-scene {
+  margin-top: 18px;
+  padding: 12px 18px;
+  background: transparent;
+  border: 1px solid var(--line2);
+  border-left: 3px solid var(--gold);
+  color: var(--txt2);
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: .18em;
+}
+#stage .choice.back-scene .kbd-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 10.5px;
+  letter-spacing: .20em;
+  color: var(--dim);
+  font-weight: normal;
+}
+#stage .choice.back-scene:hover { color: #f1dcab; border-color: #f1dcab; }
+
+/* ---------------- 检定浮层压在对话框之上 ---------------- */
+#overlay { z-index: 60; }
+#toast { z-index: 70; }
+
+/* ---------------- 窄屏 ---------------- */
+@media (max-width: 980px) {
+  :root { --panelw: 280px; }
+  #side { width: 300px; }
+  /* 窄屏上右栏最多占 46%，再多就没有场景可看了 */
+  #stage { width: max(300px, min(360px, 46vw)); padding-left: 20px; padding-right: 20px; }
+  #hint { font-size: 10.5px; }
+}
