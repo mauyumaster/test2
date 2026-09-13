@@ -118,7 +118,13 @@
     d.x = SB.rnd(x0, x1); d.y = SB.rnd(y0, y1); d.z = 4.0;   // 兜底：挪到店门前
   }
 
-  const RAIN_N = 2200, DIR = new THREE.Vector3(0.17, -1, 0.1).normalize();
+  /* 雨滴数量跟画质档走。两层的「每帧重写位置数组」是纯 CPU 开销，手机
+     上按 2200 条线段跑，光是组装顶点就占掉可见的帧时间；低档降到六成，
+     雨幕在屏幕上看到的是密度而非条数 —— 少四成几乎看不出来。
+     ⚠ 这里只改「条数」，不动 indoors 的排除逻辑：店内无雨是另一条
+     独立的断言，改密度不该碰它。 */
+  const LOWQ = !!(SB.UX && SB.UX.quality === 'low');
+  const RAIN_N = LOWQ ? 1300 : 2200, DIR = new THREE.Vector3(0.17, -1, 0.1).normalize();
   const rpos = new Float32Array(RAIN_N * 6), drops = [];
   const R1 = [-9.5, 9.5, -9.5, 9.5, -1, 14];
   for (let i = 0; i < RAIN_N; i++) {
@@ -133,7 +139,7 @@
   }));
   rain.frustumCulled = false; rain.name = 'rain'; G.add(rain);
   // 近处更亮的大雨滴
-  const RAIN2 = 420, rpos2 = new Float32Array(RAIN2 * 6), drops2 = [];
+  const RAIN2 = LOWQ ? 250 : 420, rpos2 = new Float32Array(RAIN2 * 6), drops2 = [];
   const R2 = [-6, 8, -3, 9, -1, 8];
   for (let i = 0; i < RAIN2; i++) {
     const d = { x: 0, y: 0, z: 0, sp: SB.rnd(18, 30), len: SB.rnd(0.9, 1.6) };

@@ -124,8 +124,7 @@
            '<span class="i-dist">' + W.distTo(n).toFixed(1) + 'm</span></button>';
     });
     h += '</div>';
-    h += '<div class="idle-hint">WASD 走　·　左键拖动转视角　·　点地面走过去<br>' +
-         '点上面的条目、屏幕上的光点，或按 E</div>';
+    h += '<div class="idle-hint">' + SB.UX.howTo().join('<br>') + '</div>';
     st.innerHTML = h;
     idleKey = idleSignature();
     st.querySelectorAll('[data-hot]').forEach(function (b) {
@@ -212,27 +211,38 @@
   })();
 
   /* ---------------- 面板开关 ----------------
-     Tab 技能栏 · L 日志与想法 · Esc 关掉所有面板
      两块都贴在左边（右边让给常驻文字栏），所以必须互斥：
-     同时开会精确重叠成一坨。 */
-  function toggle(id, cls) {
+     同时开会精确重叠成一坨。
+
+     ⚠ 提成 W.loop.togglePanel 而不是留在键盘回调里，是因为手机上
+     没有 Tab / L 键 —— 左侧工具条（55_ux.js）要调同一个实现。
+     各写一份的话，「互斥」这条规则就有了两个版本，改一边忘一边。 */
+  W.loop.togglePanel = function (id) {
     var el = $(id);
-    if (!el) return;
-    var on = !el.classList.contains(cls);
+    if (!el) return false;
+    var on = !el.classList.contains('open');
     ['panel', 'side'].forEach(function (o) {
       if (o === id) return;
       var other = $(o);
-      if (other) other.classList.remove(cls);
+      if (other) other.classList.remove('open');
     });
-    el.classList.toggle(cls, on);
+    el.classList.toggle('open', on);
     DE.ui.renderHud();
-  }
+    return on;
+  };
+  /* 有没有哪块面板开着（自检与工具条高亮共用一份判据） */
+  W.loop.anyPanelOpen = function () {
+    return ['panel', 'side'].some(function (id) {
+      var el = $(id);
+      return el && el.classList.contains('open');
+    });
+  };
 
   window.addEventListener('keydown', function (e) {
     if (W.loop.mode === 'create') return;
     var k = e.key.toLowerCase();
-    if (k === 'tab') { e.preventDefault(); toggle('panel', 'open'); }
-    else if (k === 'l') { toggle('side', 'open'); }
+    if (k === 'tab') { e.preventDefault(); W.loop.togglePanel('panel'); }
+    else if (k === 'l') { W.loop.togglePanel('side'); }
     else if (k === 'escape') {
       if (W.loop.mode === 'dialog') { W.loop.backToScene(); }
       ['panel', 'side'].forEach(function (id) {
@@ -240,6 +250,10 @@
       });
       var o = $('overlay'); if (o) o.classList.add('hidden');
       DE.ui.renderHud();
+      if (SB.syncUxTools) SB.syncUxTools();
     }
   });
+
+  /* 面板状态一变（键盘、工具条、Esc 三条路都算），工具条的高亮要跟上 */
+  if (SB.syncUxTools) SB.syncUxTools();
 })();

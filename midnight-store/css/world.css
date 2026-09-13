@@ -387,3 +387,175 @@ body.mode-create #panel { z-index: 33; }
   #stage { width: max(300px, min(360px, 46vw)); padding-left: 20px; padding-right: 20px; }
   #hint { font-size: 10.5px; }
 }
+
+/* ===========================================================
+   触摸与手机横屏
+   ------------------------------------------------------------
+   判定写在 JS 里（body.ux-phone / ux-touch / ux-portrait，见 55_ux.js
+   与 00_core.js 的 uxDetect），这里**不写媒体查询**。
+   理由是实测出来的：844×390 的手机横屏比不少桌面窗口还宽，
+   「按宽度写断点」必然把手机认成桌面、把被拉扁的桌面窗口认成手机 ——
+   两者要的布局恰好相反（前者要窄栏大字，后者就是桌面那套）。
+
+   桌面那份规则一个字节都没改：下面每条都挂在 body.ux-phone 之下。
+   =========================================================== */
+
+/* ---- 手势：不要让浏览器把游戏手势抢走 ----
+   画布上的一切手势都是输入：按住 = 转视角，点一下 = 走过去。
+   不写 touch-action: none 的话，手机上按住一拖就变成滚页面 / 下拉刷新，
+   玩家会觉得「视角根本转不动」——而且控制台一声不响，没有任何线索。
+   文字区（左右栏与常驻文字栏）反过来要保留滚动：那是阅读区，不是游戏区。 */
+html { -webkit-text-size-adjust: 100%; }
+html, body { overscroll-behavior: none; }
+body > canvas {
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#panel, #side, #stage { touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+
+/* ---- 手机横屏：两个宽度变量 ----
+   --panelw 左栏（技能 / 状态），--colw 右侧常驻文字栏。
+   提成变量是为了让「卡片居中于左栏右边那块空地」与「提示条别钻到右栏底下」
+   两处算术共用同一个数 —— 写死两个宽度，在 780 与 844 两档下会各错一次。 */
+body.ux-phone {
+  --panelw: max(268px, min(300px, 38vw));
+  --colw: max(288px, min(320px, 34vw));
+}
+/* 右栏下限 288px 不是随手取的：自检那条「右栏够宽」要求 > 280，
+   而 34vw 在 780px 宽的窗口下只有 265px —— 没有这个下限，
+   同一份样式在 844 上过、在 780 上挂，且挂的是一条布局断言，很难归因。 */
+body.ux-phone #stage {
+  width: var(--colw);
+  padding: 18px 20px calc(24px + env(safe-area-inset-bottom));
+  padding-right: calc(20px + env(safe-area-inset-right));
+}
+body.ux-phone #panel,
+body.ux-phone #side {
+  width: var(--panelw);
+  padding: 14px 12px calc(28px + env(safe-area-inset-bottom));
+  padding-left: calc(12px + env(safe-area-inset-left));
+  box-shadow: 18px 0 44px rgba(0, 0, 0, .5);
+}
+/* 刘海与圆角：横屏时缺口在左右两侧，贴边的东西都要让开。
+   没写 safe-area 的话，HUD 的「马路上」正好印在缺口上。 */
+body.ux-phone #hud {
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  font-size: 11px; padding: 8px 12px 8px;
+}
+/* 提示条与右栏都贴底，是这一页最容易撞的一对。
+   上限直接由 --colw 推出来：右栏左边缘 = 100vw − --colw，
+   提示条左边缘 18px，中间留 8px 缝。 */
+body.ux-phone #hint {
+  left: calc(10px + env(safe-area-inset-left));
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  font-size: 10.5px;
+  max-width: calc(100vw - var(--colw) - 26px);
+  line-height: 1.6;
+}
+body.ux-phone #hint-create {
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  font-size: 11.5px; padding: 7px 14px;
+}
+
+/* ---- 手机上的建卡：卡片居中于「左栏右边」，入口按钮钉在卡片底部 ---- */
+body.ux-phone.mode-create #stage {
+  left: calc(var(--panelw) + (100% - var(--panelw)) / 2);
+  width: min(720px, calc(100% - var(--panelw) - 28px));
+  top: 0; bottom: calc(92px + env(safe-area-inset-bottom));
+  max-height: calc(100vh - 100px - env(safe-area-inset-bottom));
+  padding: 16px 20px 18px;
+  font-size: 13px;
+}
+/* ⚠ 入口按钮必须留在视野里。横屏只有 360~430px 高，装不下这张卡的全部
+   正文，卡片会滚动 —— 而「走进去」是**唯一的入口**，被折到屏幕外就等于
+   「打开网页后无法操控」。sticky + 近乎不透明的底把它钉在卡片下沿，
+   正文从它后面滚过去。自检那条断言量的是「按钮矩形落在卡片可见矩形里」，
+   而不是「按钮存在」——后者对滚动容器里的按钮永远为真。 */
+body.ux-phone.mode-create #stage .choice.begin-cta {
+  position: sticky; bottom: 0;
+  margin-top: 18px;
+  background: linear-gradient(180deg, rgba(13, 17, 25, .88), #0d1119 38%);
+}
+
+/* ---- 左侧工具条 ----
+   手机上 Tab / L / M / N 四个开关本来只挂在键盘上，等于没有。
+   做成 2×2 的小方块贴在左边缘中段：横屏时左手拇指够得到，
+   又避开了上面（HUD）和下面（提示条）两条贴着边的浮层。
+   z-index 高于 #panel/#side(32) 与 #stage(40)：面板开着的时候
+   它必须留在最上面，否则「打开了关不掉」。 */
+#tools { display: none; }
+body.ux-phone #tools {
+  display: grid;
+  position: fixed;
+  left: calc(6px + env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
+  grid-template-columns: 44px 44px;
+  gap: 8px;
+  z-index: 47;
+}
+/* 建卡那屏左边本来就是技能栏、中间是卡片，工具条只会碍事 */
+body.ux-phone.mode-create #tools { display: none; }
+body.ux-phone #tools .ux-tool {
+  width: 44px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 15px; letter-spacing: .04em;
+  color: #b9c4d4;
+  background: rgba(9, 13, 20, .84);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 7px;
+  padding: 0;
+  -webkit-appearance: none; appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+body.ux-phone #tools .ux-tool.on {
+  color: #f1dcab;
+  border-color: rgba(214, 178, 106, .75);
+  background: rgba(48, 38, 18, .9);
+}
+
+/* ---- 竖屏：不支持态，铺满屏幕请你转过来 ----
+   这套布局是按横屏排的。390px 宽的竖屏装不下「左栏 268 + 右栏 288」，
+   两栏必然叠成一坨 —— 所以竖屏不做布局（用户明确只要横屏）。
+   但「不做布局」不等于「把一坨重叠的界面亮给用户」，那是打开即坏的第一
+   印象。做法是拿一块**铺满全屏**的提示把它盖住：底下的场景照旧在跑，
+   转过来立刻就是游戏，只是竖着的时候看不见。
+   ⚠ 这块必须铺满，不能只做一条顶部小横幅 —— 小横幅时代底下那两栏是
+   露着的，用户先看到的就是重叠；自检里那两条「两栏不重叠」的断言在
+   390px 竖屏下直接 FAIL（重叠 74272px²）。盖满之后问题才真正消失。
+   ⚠ 刻意不用 backdrop-filter：全屏模糊正好吃掉我们刚为手机省下的帧，
+   同一件事上不能一边降画质一边加全屏合成层。半透明底色够了。
+   pointer-events: none 也是刻意的：判定是「指针粗细 + 短边」，触屏笔记本
+   或被拉成竖条的窗口可能命中；不吃事件的话用户至少还能操作底下那层，
+   不至于彻底锁死。 */
+#rotate {
+  position: fixed; inset: 0;
+  z-index: 66;                    /* 高于 #overlay(60)，低于 #toast(70) */
+  display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 24px; text-align: center;
+  pointer-events: none;
+  background: radial-gradient(125% 95% at 50% 42%, rgba(11, 15, 22, .90), rgba(4, 6, 10, .975));
+  color: var(--txt2); font-size: 13px; line-height: 1.75;
+}
+#rotate.show { display: flex; }
+#rotate .rot-ico {
+  display: block; font-size: 40px; line-height: 1;
+  color: var(--gold); opacity: .9;
+}
+#rotate b { display: block; color: var(--gold); font-size: 15px; letter-spacing: .16em; }
+#rotate span { display: block; color: var(--dim); max-width: min(86vw, 360px); }
+
+/* ---- 触摸目标 ----
+   .mark 是手机上唯一的「点一下」目标，而默认那圈只有 4px padding：
+   圆点 12px + 4×2 = 20px 的可点区域，手指按不准。
+   ⚠ 这里必须**对称**加 padding。.mark 是靠 transform: translate(-50%,-50%)
+   居中在投影点上的，左右各加同样的量时圆点相对投影点的位置一个像素都不动；
+   只加左边就会让圆点整体偏出热点本身（这种偏移在截图里看不出来，
+   越走越偏才被发现）。 */
+body.ux-phone .mark { padding: 11px; }
+body.ux-phone .mk-label { font-size: 12px; }
+

@@ -19,11 +19,79 @@ window.SB = window.SB || {};
      无头截图会拍到一块全黑的画布。正常游玩不开，避免无谓的拷贝开销。 */
   var SHOT = /(^|[?&])still(=|&|$)/.test(location.search);
 
+  /* ---------- 设备与画质 ----------
+     手机与桌面浏览器跑同一个页面，差别不在「像素多少」，而是三件根本
+     不同的事：**输入**（有没有指针悬停 / 有没有键盘）、**视口形状**
+     （横屏手机的高只有 360~430px）、**GPU 预算**（手机上片元着色按面积
+     付账，DPR 3 就是 9 倍像素）。
+
+     这里只做**纯检测**：算清「是不是手机」「横着还是竖着」「用哪档画质」。
+     不碰 DOM、不写样式类 —— 布局与文案在 js/55_ux.js 里做，那些要等
+     DOM 齐了才能动手。
+
+     ⚠ 判据不能是「宽度小于某个值」。844×390 的手机横屏比桌面窄，但
+     780×360 也可能是有人在电脑上把窗口拉扁了 —— 两者要的布局完全相反
+     （前者要窄栏大字，后者是桌面）。真正的判据是**指针类型**（触屏 =
+     coarse）＋ **短边够短**（手机横屏时短边就是那个 360~430）。
+     所以这里不写媒体查询，写在 JS 里，还能被自检读到。
+
+     ⚠ 无头自检里 `pointer: coarse` 永远是 false、`maxTouchPoints` 是 0，
+     自动判定必然得出「这是桌面」。**所以必须有 ?ux= 强制口**，否则
+     「手机布局」这个状态在自检里根本走不进去 —— 而没被走进过的状态
+     就等于没验过（本项目最贵的一条教训）。
+     ------------------------------------------------------------ */
+  function uxDetect() {
+    var m = /(^|[?&])ux=(phone|wide|auto)(&|$)/.exec(location.search);
+    var forced = m ? m[2] : null;
+    var touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+                (navigator.maxTouchPoints || 0) > 0;
+    var w = window.innerWidth, h = window.innerHeight;
+    var phone = forced === 'phone' ? true
+              : forced === 'wide'  ? false
+              : (touch && Math.min(w, h) <= 560);
+    /* 画质档：手机默认低档，可用 ?q=high 单独顶回来（拍预览时有用：
+       要手机布局、但想要一张抗锯齿的图）。 */
+    var q = /(^|[?&])q=(low|high)(&|$)/.exec(location.search);
+    return {
+      forced: forced, touch: touch, phone: phone,
+      quality: q ? q[2] : (phone ? 'low' : 'high'),
+      w: w, h: h, short: Math.min(w, h),
+      portrait: h > w, landscape: w >= h
+    };
+  }
+  SB.UX = uxDetect();
+  /* 转屏与拖窗口都会改 w/h。强制项（?ux= / ?q=）保持，其余重算。 */
+  SB.UX.refresh = function () {
+    var n = uxDetect();
+    for (var k in n) SB.UX[k] = n[k];
+    return SB.UX;
+  };
+  /* 手机竖屏。这套布局是按横屏设计的（右栏占 34vw 而短边只有 390），
+     竖着拿时右栏会吃掉大半个屏幕。不拦着不让玩，只提示转过来。 */
+  SB.UX.needsRotate = function () { return !!SB.UX.phone && SB.UX.portrait; };
+
+  const LOWQ = SB.UX.quality === 'low';
+  /* 画质档换算成两个具体数字，摆在 SB.UX 上。提出来有两个原因：
+     ① 单一来源 —— 渲染器和阴影贴图都从这里取，不会各写一遍；
+     ② **可断言** —— 「手机上真的降配了吗」这句在无头环境里很难验：
+        无头浏览器的 devicePixelRatio 恒为 1，于是 min(dpr,1.5) 和
+        min(dpr,2) 都算出 1，断言 `getPixelRatio() <= 1.5` 一个错误实现
+        也照样绿。所以把上限本身交出去，断言改成「上限是 1.5」＋
+        「实际值等于按上限算出来的值」两句话。
+     注意 quality 在页面生命周期里不会变（refresh 只重算尺寸与朝向），
+     所以这两个数也不需要跟着 refresh 走。 */
+  SB.UX.dprCap = LOWQ ? 1.5 : 2;
+  SB.UX.shadowSize = LOWQ ? 1024 : 2048;
+
   const renderer = new THREE.WebGLRenderer({
-    antialias: true, alpha: false, powerPreference: 'high-performance',
+    /* 低画质关掉 MSAA：手机上「DPR 1.5 无抗锯齿」的实际观感好于
+       「DPR 3 带抗锯齿」，而后者是 4 倍片元。 */
+    antialias: !LOWQ, alpha: false, powerPreference: 'high-performance',
     preserveDrawingBuffer: SHOT
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  /* DPR 上限：手机 1.5、桌面 2。手机上 2 以上是纯浪费 —— 8 倍像素换
+     一点点锐度，帧率掉一半。 */
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, SB.UX.dprCap));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -330,7 +398,7 @@ window.SB = window.SB || {};
   const moon = new THREE.DirectionalLight(0x9db6ff, 0.22);
   moon.position.set(-9, 15, 8);
   moon.castShadow = true;
-  moon.shadow.mapSize.set(2048, 2048);
+  moon.shadow.mapSize.set(SB.UX.shadowSize, SB.UX.shadowSize);
   const sc = moon.shadow.camera;
   sc.left = -14; sc.right = 14; sc.top = 14; sc.bottom = -14; sc.near = 2; sc.far = 46;
   moon.shadow.bias = -0.0012;
@@ -353,6 +421,10 @@ window.SB = window.SB || {};
   SB.fps = function (t, dt) { /* placeholder for future */ };
 
   window.addEventListener('resize', function () {
+    /* 转屏会改「横着还是竖着」，布局类与文案都要跟着重算 ——
+       放在这里而不是 55_ux.js 里，是为了保证「先刷新设备判定、再算镜头」。 */
+    if (SB.UX && SB.UX.refresh) SB.UX.refresh();
+    if (SB.applyUxClasses) SB.applyUxClasses();
     /* 镜头平移是按窗口宽度算的，窗口一变必须重算 ——
        只改 aspect 会让画面重新回到居中，右栏就压到角色身上了。 */
     SB.applyLens();

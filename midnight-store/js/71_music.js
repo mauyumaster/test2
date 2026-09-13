@@ -336,6 +336,10 @@
       return enabled;
     },
 
+    /* 当前开没开。手机上的工具条拿它给按钮上高亮 —— 高亮必须问实现本身，
+       另存一份布尔就会出现「关掉了但按钮还亮着」这种自相矛盾。 */
+    on: function () { return !!enabled; },
+
     setRegion: function (name) {
       if (!ready) return;
       /* 店内：隔着玻璃和雨；街上：开阔 */
