@@ -66,6 +66,26 @@
 
     img { max-width: 100%; }
 
+    /* ---------- 星场 ----------
+       一层固定铺满视口的 canvas，垫在所有内容之下：首屏和作品区共用同一片天空，
+       作品被拖走后的轨迹也画在这一层上。
+       坐标一律用「视口坐标」—— canvas 是 fixed 的，而 getBoundingClientRect
+       返回的也是视口坐标，两者可以原样对接，不做任何换算。 */
+    #sky {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    /* 星场在 z-index:0，这几块内容要抬到它上面（.top 自带 z-index:20） */
+    #main,
+    .foot {
+      position: relative;
+      z-index: 1;
+    }
+
     .wrap {
       max-width: 1180px;
       margin: 0 auto;
@@ -674,6 +694,9 @@
 <body>
   <a class="skip" href="#works">跳到作品</a>
 
+  <!-- 星场：固定层，铺满视口，垫在全部内容之下。纯 canvas，不加载任何外部资源。 -->
+  <canvas id="sky" aria-hidden="true"></canvas>
+
   <header class="top">
     <div class="wrap top-in">
       <a class="mark" href="./">bingwenwang<span>.top</span></a>
@@ -731,7 +754,7 @@
     <section id="works" class="wrap sect">
       <header class="sect-h rv">
         <h2>作品</h2>
-        <p class="sect-n">三个打开就能动的东西</p>
+        <p class="sect-n">三个打开就能动的东西 · 也可以拖一下</p>
         <span class="count">03 件</span>
       </header>
 
@@ -974,6 +997,361 @@
           if (r.top < window.innerHeight) items[k].classList.add('in');
         }
       }, 1500);
+    })();
+  </script>
+
+  <script>
+    /* ================= 星场（漂移 ＋ 透镜偏折）＋ 作品的引力交互 =================
+
+       两件事共用这一层固定 canvas：
+       1) 星场：三层景深、极慢斜向漂移、极轻微闪烁；指针附近做引力透镜偏折
+          （星点被径向推开并增亮 —— 真实引力透镜就是让背景天体看起来偏离原位的）。
+       2) 作品被拖走松手后的轨迹：canvas 是 fixed（视口坐标），
+          getBoundingClientRect 也是视口坐标，所以两者直接共用，不做换算。
+
+       作品为什么这么写：
+       - 平时它一动不动，页面和你看到的一样。只有你主动拖它，它才进入自由飞行。
+       - 松手后不是「弹回去」，而是以原位为焦点走一段开普勒椭圆：近处猛、远处缓。
+       - 松手速度被钳在 0.78 × 该距离的圆轨道速度。0.78 对应偏心率约 0.39 的椭圆：
+         大到看得出一条弧，又小到数学上不可能逃逸（逃逸需要 ≥ √2 ≈ 1.41）。
+         所以「一定会回来」是算出来的，不是靠调参调出来的。
+       - 每帧速度乘 DISSIP 做耗散：轨道逐圈收缩，最后落回原位。另有 7s 兜底。
+
+       性能与降级：DPR ≤ 2；标签页隐藏时停 rAF；prefers-reduced-motion 时
+       只画一帧静态星图（不漂移、不闪烁、无透镜），且完全禁用拖拽。 */
+
+    (function () {
+      /* ⚠ canvas 拿不到时不要在函数开头 return —— 那会把下面「作品的拖拽」
+         一起废掉，而且症状是「拖拽完全无效」，看起来和 canvas 毫无关系。
+         这里只把 ctx 置空，各自在自己的地方守。 */
+      var sky = document.getElementById('sky');
+      var ctx = (sky && sky.getContext) ? sky.getContext('2d') : null;
+
+      var AM = '217, 164, 65';
+      var LENS = 240;          /* 透镜影响半径（视口像素） */
+      var STARS_MAX = 240;
+      var W = 0, H = 0, DPR = 1;
+      var stars = [], trails = [];
+      var px = -9999, py = -9999, hasPtr = false;
+      var raf = 0, last = 0, phase = 0;
+
+      var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      function reduce() { return !!(mq && mq.matches); }
+
+      function seed() {
+        var n = Math.max(90, Math.min(STARS_MAX, Math.round(W * H / 8200)));
+        var R = [0.45, 0.7, 1.05];            /* 三层：远小暗慢 / 中大亮快 */
+        var A = [0.14, 0.26, 0.46];
+        var S = [0.25, 0.55, 1.05];           /* 漂移速度上限（px/s），最远层也才 ~2px/s */
+        stars = [];
+        for (var i = 0; i < n; i++) {
+          var d = i % 3;
+          stars.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            r: R[d] + Math.random() * (0.3 + d * 0.15),
+            a: A[d] * (0.6 + Math.random() * 0.7),
+            vx: S[d] * (0.6 + Math.random() * 0.9),
+            vy: S[d] * 0.4 * (0.6 + Math.random() * 0.9),
+            p: Math.random() * 6.283,
+            am: Math.random() < 0.11
+          });
+        }
+      }
+
+      function resize() {
+        var w = window.innerWidth, h = window.innerHeight;
+        var widthChanged = (w !== W);
+        DPR = Math.min(2, window.devicePixelRatio || 1);
+        W = w; H = h;
+        if (ctx) {
+          sky.width = Math.round(W * DPR);
+          sky.height = Math.round(H * DPR);
+          ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+          /* 只在宽度变化时重新撒星（手机上地址栏伸缩会频繁触发 resize，
+             每次都重撒会让星场「跳」一下） */
+          if (widthChanged || !stars.length) seed();
+        }
+        for (var i = 0; i < cards.length; i++) cards[i].bx = null;
+      }
+
+      function drawSky(dt) {
+        if (!ctx) return;
+        for (var i = 0; i < stars.length; i++) {
+          var s = stars[i];
+          if (dt) {
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            if (s.x > W + 6) s.x -= W + 12;
+            if (s.y > H + 6) s.y -= H + 12;
+          }
+          var x = s.x, y = s.y, a = s.a;
+          if (dt) a *= 0.78 + 0.22 * Math.sin(phase * 1.3 + s.p);
+          if (hasPtr) {
+            var dx = x - px, dy = y - py;
+            var dd = Math.sqrt(dx * dx + dy * dy);
+            if (dd < LENS) {
+              var f = 1 - dd / LENS;
+              var sh = 24 * f * f;
+              x += dx / (dd || 1) * sh;
+              y += dy / (dd || 1) * sh;
+              a = Math.min(0.85, a * (1 + f * 0.75));
+            }
+          }
+          ctx.fillStyle = 'rgba(' + (s.am ? AM : '255, 255, 255') + ', ' + a.toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.arc(x, y, s.r, 0, 6.283);
+          ctx.fill();
+        }
+      }
+
+      function drawTrails() {
+        if (!ctx) return;
+        for (var i = 0; i < trails.length; i++) {
+          var t = trails[i];
+          if (t.pts.length < 6 || t.fade <= 0) continue;
+          ctx.strokeStyle = 'rgba(' + AM + ', ' + (0.32 * t.fade).toFixed(3) + ')';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(t.pts[0], t.pts[1]);
+          for (var k = 2; k < t.pts.length; k += 2) ctx.lineTo(t.pts[k], t.pts[k + 1]);
+          ctx.stroke();
+        }
+      }
+
+      /* ---------- 作品：可拖拽的物理实体 ---------- */
+
+      var GM = 1.4e7;          /* 引力常数：d=180px 时圆轨道周期约 4.2s，刚好是一个看得清全貌的弧 */
+      var SOFT = 2500;         /* 软化项（50px 量级）：r → 0 时不让加速度发散 */
+      var VCLAMP = 0.78;       /* 松手速度上限（× 圆轨道速度），见文件头注释 */
+      var DISSIP = 0.994;      /* 每帧耗散 */
+      var DRAG_PX = 6;         /* 位移超过 6px 才算拖拽，否则仍算点击 —— 不然点不开作品 */
+      var TIMEOUT = 7;         /* 兜底：7s 还没收束就平滑收回去 */
+
+      var cards = [];
+      (function () {
+        var els = document.querySelectorAll('.works .card');
+        for (var i = 0; i < els.length; i++) cards.push(make(els[i]));
+      })();
+
+      function base(c) {
+        if (c.bx !== null) return;
+        var r = c.el.getBoundingClientRect();
+        c.bx = r.left + window.scrollX;
+        c.by = r.top + window.scrollY;
+        c.bw = r.width;
+        c.bh = r.height;
+      }
+
+      function finish(c) {
+        if (c.st) { clearTimeout(c.st); c.st = 0; }
+        c.el.classList.remove('settling');
+        c.el.style.translate = '';
+        c.tx = 0; c.ty = 0; c.vx = 0; c.vy = 0;
+        c.free = 0; c.dragging = 0; c.down = 0;
+        if (c.trail) { c.trail.live = 0; c.trail = null; }
+      }
+
+      function snapBack(c) {
+        c.free = 0; c.vx = 0; c.vy = 0;
+        c.el.classList.add('settling');
+        c.el.style.translate = '0px 0px';
+        if (c.trail) { c.trail.live = 0; c.trail = null; }
+        c.st = setTimeout(function () { c.st = 0; finish(c); }, 460);
+      }
+
+      /* 松手速度：用最近 ~80ms 的位移除以时间，而不是用「上一帧的位移」。
+         ⚠ 指针事件和 rAF 帧并不同步：某一帧刚好没有位移时，用帧位移会把速度
+         算成 0，于是「甩出去」变成「原地落下」，整个弧线都不会出现。
+         另外，如果指针在松手前已经停了一会儿（>60ms），速度本来就该是 0，
+         这时不做补偿。 */
+      function vel(c) {
+        var h = c.hist, n = h.length;
+        if (n < 2) { c.vx = 0; c.vy = 0; return; }
+        var lastS = h[n - 1];
+        if (performance.now() - lastS.t > 60) { c.vx = 0; c.vy = 0; return; }
+        var ref = h[0];
+        for (var i = n - 1; i >= 0; i--) {
+          ref = h[i];
+          if (lastS.t - h[i].t > 80) break;
+        }
+        var dt = (lastS.t - ref.t) / 1000;
+        if (dt < 0.012) { c.vx = 0; c.vy = 0; return; }
+        c.vx = (lastS.x - ref.x) / dt;
+        c.vy = (lastS.y - ref.y) / dt;
+      }
+
+      function make(el) {
+        var c = {
+          el: el, tx: 0, ty: 0, vx: 0, vy: 0, hist: [],
+          free: 0, dragging: 0, down: 0, sup: 0,
+          sx: 0, sy: 0, lx: 0, ly: 0, t0: 0, trail: null, st: 0,
+          bx: null, by: null, bw: 0, bh: 0
+        };
+        el.setAttribute('draggable', 'false');
+        el.addEventListener('dragstart', function (e) { e.preventDefault(); });
+
+        el.addEventListener('pointerdown', function (e) {
+          if (reduce()) return;
+          if (c.st) finish(c);
+          c.sup = 0; c.down = 1; c.dragging = 0; c.free = 0;
+          c.sx = e.clientX; c.sy = e.clientY;
+          c.lx = e.clientX; c.ly = e.clientY;
+          c.vx = 0; c.vy = 0;
+          c.hist.length = 0;
+          /* 只在卡片处于原位时重新量基准矩形 —— 量的是「原位」，不是当前位置，
+             否则轨迹会整体偏移一个拖拽位移 */
+          if (c.tx === 0 && c.ty === 0) { c.bx = null; base(c); }
+          if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch (err) { } }
+        });
+
+        el.addEventListener('pointermove', function (e) {
+          if (!c.down) return;
+          if (!c.dragging) {
+            var mx = e.clientX - c.sx, my = e.clientY - c.sy;
+            if (mx * mx + my * my < DRAG_PX * DRAG_PX) return;
+            c.dragging = 1;
+            c.tx += mx; c.ty += my;      /* 补上越过阈值之前已累积的那段位移 */
+            c.t0 = performance.now();
+            el.classList.add('dragging');
+            c.trail = { pts: [], fade: 1, live: 1 };
+            trails.push(c.trail);
+          } else {
+            c.tx += e.clientX - c.lx;
+            c.ty += e.clientY - c.ly;
+          }
+          c.lx = e.clientX; c.ly = e.clientY;
+          el.style.translate = c.tx.toFixed(1) + 'px ' + c.ty.toFixed(1) + 'px';
+          c.hist.push({ t: performance.now(), x: c.tx, y: c.ty });
+          if (c.hist.length > 14) c.hist.shift();
+        });
+
+        function up() {
+          if (!c.down) return;
+          c.down = 0;
+          if (!c.dragging) return;
+          c.dragging = 0;
+          el.classList.remove('dragging');
+          c.sup = 1;                     /* 这一次手势不再当成点击（否则会跳走） */
+          vel(c);                        /* 松手速度：最近 ~80ms 的位移 ÷ 时间 */
+          var d = Math.sqrt(c.tx * c.tx + c.ty * c.ty);
+          var sp = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+          var vc = VCLAMP * Math.sqrt(GM / Math.max(d, 24));
+          if (sp > vc && sp > 0) { c.vx *= vc / sp; c.vy *= vc / sp; }
+          c.free = 1;
+          c.t0 = performance.now();
+        }
+        el.addEventListener('pointerup', up);
+        el.addEventListener('pointercancel', up);
+
+        el.addEventListener('click', function (e) {
+          if (c.sup) { e.preventDefault(); e.stopPropagation(); c.sup = 0; }
+        });
+
+        return c;
+      }
+
+      function stepCards(dt) {
+        for (var i = 0; i < cards.length; i++) {
+          var c = cards[i];
+
+          if (c.free) {
+            var d2 = c.tx * c.tx + c.ty * c.ty;
+            var d = Math.sqrt(d2);
+            var sp = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+            if (d < 8 && sp < 160) {
+              /* 已经回到原位附近，直接落位 */
+              c.el.style.translate = '';
+              c.tx = 0; c.ty = 0; c.vx = 0; c.vy = 0; c.free = 0;
+              if (c.trail) { c.trail.live = 0; c.trail = null; }
+            } else if (sp < 8 && d < 60) {
+              /* 已经衰减成原位附近的小晃动，用过渡落定 */
+              snapBack(c);
+            } else {
+              var a = GM / (d2 + SOFT);
+              var inv = 1 / Math.max(d, 1);
+              c.vx -= c.tx * inv * a * dt;
+              c.vy -= c.ty * inv * a * dt;
+              var f = Math.pow(DISSIP, dt * 60);
+              c.vx *= f; c.vy *= f;
+              c.tx += c.vx * dt;
+              c.ty += c.vy * dt;
+              c.el.style.translate = c.tx.toFixed(1) + 'px ' + c.ty.toFixed(1) + 'px';
+              if (performance.now() - c.t0 > TIMEOUT * 1000) snapBack(c);
+            }
+          }
+
+          if ((c.dragging || c.free) && c.trail) {
+            base(c);
+            c.trail.pts.push(
+              c.bx + c.bw / 2 - window.scrollX + c.tx,
+              c.by + c.bh / 2 - window.scrollY + c.ty
+            );
+            if (c.trail.pts.length > 420) c.trail.pts.splice(0, 2);
+          }
+        }
+      }
+
+      function loop(now) {
+        var dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+        last = now;
+        phase += dt;
+        stepCards(dt);
+        if (ctx) {
+          ctx.clearRect(0, 0, W, H);
+          drawSky(dt);
+          drawTrails();
+          for (var i = trails.length - 1; i >= 0; i--) {
+            var t = trails[i];
+            if (!t.live) {
+              t.fade -= dt * 1.9;
+              if (t.fade <= 0) trails.splice(i, 1);
+            }
+          }
+        }
+        raf = requestAnimationFrame(loop);
+      }
+
+      function boot() {
+        if (reduce()) {
+          if (raf) { cancelAnimationFrame(raf); raf = 0; }
+          hasPtr = false;
+          if (ctx) {
+            ctx.clearRect(0, 0, W, H);
+            drawSky(0);                  /* 只画一帧：不漂移、不闪烁、无透镜 */
+          }
+        } else if (!raf) {
+          last = 0;
+          raf = requestAnimationFrame(loop);
+        }
+      }
+
+      window.addEventListener('pointermove', function (e) {
+        if (reduce()) return;
+        px = e.clientX; py = e.clientY; hasPtr = true;
+      }, { passive: true });
+      document.addEventListener('pointerleave', function () { hasPtr = false; });
+      window.addEventListener('blur', function () { hasPtr = false; });
+
+      window.addEventListener('resize', function () { resize(); if (reduce()) boot(); });
+
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+        else boot();
+      });
+
+      if (mq) {
+        var onMQ = function () {
+          for (var i = 0; i < cards.length; i++) finish(cards[i]);
+          trails.length = 0;
+          boot();
+        };
+        if (mq.addEventListener) mq.addEventListener('change', onMQ);
+        else if (mq.addListener) mq.addListener(onMQ);
+      }
+
+      resize();
+      boot();
     })();
   </script>
 </body>
