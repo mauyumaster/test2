@@ -1157,13 +1157,32 @@
         return w / 2;
       }
 
-      /* 轨道必须落进这一块矩形。- 桌面＝右侧半屏；窄屏＝右上角，不压正文。
+      /* 轨道必须落进这一块矩形。桌面＝**整页**（左边界只留球半径，不再让给正文栏）；
+         窄屏＝右上角。
+         ⚠ 桌面的 x0 曾经写成 LANE_R + 38 + ph，即「轨道只许待在正文栏右边」。那正是
+         「星球只能在黑洞旁一小圈里打转」的成因：黑圆心在 0.855W、右边只剩 118px，
+         近点被钉死；而左边一到 789px（栏右缘）就封顶 —— a 只能长到 150–210px，
+         比黑洞自己的吸积盘半径（RH≈270）还小。放开 x0 之后 a 能到 300–630px，
+         整页扫过。正文可读性改由 placePlanet 的「进栏渐隐 ＋ 让开指针」负责（见那里）。
          边界要按星球半径内缩，否则星球中心还在区内、半个身子已出屏。 */
       function orbitPad() {
         var ph = planetHalf();
-        return NARROW
+        var p = NARROW
           ? { x0: W * 0.30 + ph, x1: W - ph - 6, y0: TOP_BAR + ph + 6, y1: H * 0.44 }
-          : { x0: LANE_R + 38 + ph, x1: W - ph - 6, y0: TOP_BAR + ph + 6, y1: H - ph - 10 };
+          : { x0: ph + 10, x1: W - ph - 6, y0: TOP_BAR + ph + 6, y1: H - ph - 10 };
+        /* ⚠ 这一块矩形**必须包住黑洞中心**，否则 fitOrbit 会静默丢掉那一侧的约束：
+           它只在「这一侧确实还有余量」（avail > 0）时才拿它当约束，余量为负就直接跳过
+           —— 那是为「窄屏黑洞比 x1 还靠右」写的护栏，但对**上边**同样会生效。
+           实测：844×390（横屏手机）TOP_BAR=88 ⇒ y0=146，而 HC.y = 0.28H = 109，
+           洞心比框顶还高 37px，于是顶部约束被跳过、星球从屏幕上沿飞出去。
+           粗采样（只看几秒内的实际位置）正好错过了那个相位，扫 19 档宽度才露头。
+           对策：超短视口里顶栏本来就占不下（88/390 = 23%），退回「视口内缩」——
+           宁可让球压到顶栏（窄屏它本来就沉在内容之下、52% 不透明度），也不让它出屏。 */
+        if (p.y0 > HC.y - ph) p.y0 = Math.max(ph + 4, HC.y - ph);
+        if (p.y1 < HC.y + ph) p.y1 = Math.min(H - ph - 4, HC.y + ph);
+        if (p.x0 > HC.x - ph) p.x0 = Math.max(ph + 4, HC.x - ph);
+        if (p.x1 < HC.x + ph) p.x1 = Math.min(W - ph - 4, HC.x + ph);
+        return p;
       }
 
       function seed() {
@@ -1319,8 +1338,15 @@
       }
 
       /* ---------- 开普勒轨道 ---------- */
-      var GM = 1.6e6;            /* 引力常数（px³/s²）：a≈150px 处周期约 9s。再小轨道就太慢，再大拖拽就发木 */
+      var GM = 1.6e6;            /* 引力常数（px³/s²）。**每次 resize 由 orbitFrame() 重算** ——
+                                    见那里的 T_REF：半长轴由视口推导，GM 写死的话同一份
+                                    代码在桌面是一分钟一圈、在手机上又是两秒一圈。 */
       var VCLAMP = 0.78;         /* 松手速度上限（× 圆轨道速度）：必然束缚 */
+      /* 近点保底时可以**借**到的速度上界。用户甩出来的速度仍钳在 VCLAMP，
+         但当松手点离洞太近、VCLAMP 下物理上够不到 rpFloor 时，允许把切向速度
+         提到这里 —— 半径 r 处能拿到的最好近点只有 0.44r（VCLAMP 下），抬到 0.95 是 0.82r，
+         差的就是「球扎进盘内缘」和「球擦着盘内缘走」这一档。0.95 < 1 ⇒ 仍是束缚椭圆。 */
+      var VHARD = 0.95;
       var E_MAX = 0.82;          /* 注入新轨道时偏心率上限（近点距仍 ≥ 0.18a） */
       var DRAG_PX = 6;           /* 位移超过 6px 才算拖拽，否则仍算点击 */
       /* 视界 / 光子环 / 吸积盘内缘，各自 ÷ #hole canvas 半径。
@@ -1363,11 +1389,19 @@
         var pad = orbitPad();
         ORB.rpMin = Math.max(RH * 0.42, planetHalf() * 0.6);
         ORB.raMax = Math.max(ORB.rpMin * 1.8, HC.x - pad.x0);   /* 远点朝左，用满到 pad 左边 */
-        ORB.raMin = Math.max(ORB.rpMin * 1.3, ORB.raMax * 0.62);
+        ORB.raMin = Math.max(ORB.rpMin * 1.3, ORB.raMax * 0.46);
         /* 近点朝右：能伸多远由「右侧还剩多少」定；同时别超过远点的 0.36 ——
            近点一远，椭圆就接近正圆，「远点慢、近点快」的层次也就没了。 */
         ORB.rpMax = Math.max(ORB.rpMin * 1.05,
           Math.min(pad.x1 - HC.x, ORB.raMax * 0.50));
+        /* ⚠ GM 必须跟着视口的尺度重算。a 是从视口推导的（桌面 300–630px、窄屏 50–90px，
+           差 7 倍），而 T = 2π√(a³/GM) 是 a 的 1.5 次方 —— GM 写死一个值时，桌面会拖成
+           「一分钟一圈」、手机上又缩成「两秒一圈」。锚点取「外圈那条轨道走一圈 T_REF 秒」，
+           于是不管是桌面还是手机，看到的都是同一种「从容扫过」的手感。
+           顺带：v_apo = √(GM(1−e)/(a(1+e))) ∝ √(GM/a) ∝ √A_REF，视觉速度也随视口等比缩放。 */
+        var A_REF = (ORB.raMax + ORB.rpMin) / 2;
+        var T_REF = NARROW ? 18 : 30;
+        GM = 39.4784 * A_REF * A_REF * A_REF / (T_REF * T_REF);
       }
 
       /* 初始轨道由名字推导：远点距 ra、偏心率 e、近点方向 ω、初始真近点角 ν。
@@ -1389,10 +1423,12 @@
           a: (ra + rp) / 2,
           e: e,
           w: (h3 - 0.5) * 0.86,        /* 近点方向：朝右偏一点，远点自然朝左 */
-          /* 起始真近点角：三颗都落在远点（左侧、看得见的那一侧）附近，按顺序
-             铺开约 100° —— 一进场就是「三颗星球挂在黑洞左边」，而不是某颗正
-             好压在洞口。之后周期不同，它们自己会散开。h4 负责抖动。 */
-          th: Math.PI + ((idx || 0) - 1) * 0.85 + (h4 - 0.5) * 0.5
+          /* 起始真近点角：一圈摊开约 215°（54° / 162° / 270°）。
+             ⚠ 老写法把三颗都放在远点（π 附近）—— 那时轨道半径只有 150–210px，
+             「三颗挂在黑洞左边」是好构图；轨道放大到近页宽之后，远点落在正文栏
+             深处，一进场就成了「三颗淡球叠在文字上、右边一颗都看不见」。
+             h4 负责抖动（±0.25rad）。 */
+          th: Math.PI * (0.30 + (idx || 0) * 0.60) + (h4 - 0.5) * 0.5
         };
       }
 
@@ -1445,12 +1481,32 @@
         if (z < 0) z = 0; else if (z > 1) z = 1;
         var sc = 1.07 - 0.14 * z;      /* 近大远小 */
         var op = 0.94 - 0.10 * z;      /* 近亮远暗 */
+        /* 正文栏内的让位。轨道放开到整页之后，远点在正文栏深处，而开普勒让星球在
+           远点附近**最慢** —— 也就是它会在文字上慢慢蹭。
+           ⚠ 靠 z-index 是解决不了的：文字没有底色、只有笔画，星球垫到文字下面照样
+           「透过字缝整颗看得见」，反而更乱。能用的只有「变淡」。
+           ⚠ 而且**只动透明度、不动尺寸**：尺寸已经有一个含义（近大远小），再叠一层
+           「在不在正文栏上」会让同一个变量有两个意思，验收脚本也没法把两者分开量
+           （实测过：混在一起时「近大远小」那条断言会假失败）。
+             lt 从「球心越过栏右缘」起算，走到栏内 0.72×栏宽 处到顶。曲线取 √lt
+             而不是 lt：线性太慢 —— lt=0.4（球心已在正文栏内四成）时还有 0.71 不透明度，
+             字被压得发灰（实测 0.65；而字面的对比度要撑到 0.5 以下才够）。
+             √lt 让「刚压到字」掉到 0.73、栏内四成 0.49、最深处 0.29 —— 一颗远景暗球。
+           ⚠ 指针也必须让开：.planet 的命中区有 104–164px，盖在正文上时会把
+           「点正文链接」整个吃掉。深进正文栏的星球一律 pointer-events:none
+           （拖拽途中除外：那时指针已 setPointerCapture，中途改会打断这次拖拽）。 */
+        var lt = NARROW ? 0 : (LANE_R - q.x) / Math.max(1, LANE_R * 0.72);
+        if (lt < 0) lt = 0; else if (lt > 1) lt = 1;
+        op *= 1 - 0.66 * Math.sqrt(lt);
         /* translate(-50%,-50%) 收在最后：CSS 变换从右往左作用，
            先居中再缩放再平移，结果就是「球心永远落在 (q.x,q.y)」。
            少了这一句，轨道算出来的点是盒子左上角，整条轨道会整体偏右下半个球。 */
         el.style.transform = 'translate3d(' + q.x.toFixed(1) + 'px,' + q.y.toFixed(1) +
           'px,0) scale(' + sc.toFixed(4) + ') translate(-50%,-50%)';
         el.style.opacity = (op * SYS_OP).toFixed(3);
+        /* 只在真的变了才写：这一句每帧都跑，同值重复赋值会让样式表反复失效。 */
+        var pe = lt > 0.10 ? 'none' : '';
+        if (!p.dragging && el.style.pointerEvents !== pe) el.style.pointerEvents = pe;
       }
 
       /* 用松手时的位置 + 速度解算新的开普勒轨道要素。
@@ -1468,7 +1524,8 @@
            保证新轨道必然是束缚椭圆（VCLAMP<1 ⇒ 永远不会变成抛物线/双曲线）。 */
         var ux = vx, uy = vy / TILT;
         var sp = Math.sqrt(ux * ux + uy * uy);
-        var vCap = VCLAMP * Math.sqrt(GM / r);
+        var vCap = VCLAMP * Math.sqrt(GM / r);      /* 用户甩速的钳位 */
+        var vTop = VHARD * Math.sqrt(GM / r);       /* 保底搜索的上界（见 VHARD） */
         if (sp > vCap && sp > 0) { ux *= vCap / sp; uy *= vCap / sp; sp = vCap; }
         var vr0 = ux * erx + uy * ery;
         var vt0 = ux * etx + uy * ety;
@@ -1478,7 +1535,12 @@
 
         /* 旋钮只有一个：切向速度的绝对值 vta。径向按 vr = sgnR·√(V²−vta²)
            让位 —— vta ≤ V 是「总速不变、方向从径向掰到切向」；vta > V 时径向
-           已归零，只能加速（到顶 vCap）。
+            已归零，只能加速（到顶 vTop）。
+            ⚠ 上界不能复用 vCap：vCap 是「用户甩速的钳位」，拿来当保底上界会让
+            「半径 r 处近点的上界只有 0.44r」变硬天花板 —— 实测贴着洞口甩出
+            rp=46 < 盘内缘 63，球一头扎进盘内侧的暗区（截图里只是「贴着黑洞飞」，
+            看不出来）。抬到 0.95 后，r ≥ ORB.rpMin(=0.42RH) 时最好近点 ≈0.82r ≥ 盘内缘，
+            保底**必然可达** —— 这条闸才有意义。
            近点 rp = a(1−e) 对 vta 单调递增（vta↑ → a↑ 且 e↓，两者一起抬高
            近点），所以直接二分找**刚好**把 rp 抬到 rpFloor 的那个 vta；整段都
            够不到（松手点离洞心太近、物理上就够不到）则取 vta = vCap 那个最好
@@ -1535,8 +1597,8 @@
         }
         function bisectV(pred) {
           if (pred(vta0)) return vta0;      /* 用户甩出来的本就合法，原样保留 */
-          if (!pred(vCap)) return -1;
-          var loV = vta0, hi2 = vCap;
+          if (!pred(vTop)) return -1;
+          var loV = vta0, hi2 = vTop;
           for (var it = 0; it < 32; it++) {
             var midV = (loV + hi2) / 2;
             if (pred(midV)) hi2 = midV; else loV = midV;
@@ -1548,7 +1610,7 @@
         if (vPick < 0) vPick = bisectV(okLoose);
         /* 两档都够不到：松手点离洞心太近，同一半径下近点的上界就是 ≈0.437r
            —— 取全切向，那是能拿到的最好值（注释③说的情形）。 */
-        cur = solveVT(vPick >= 0 ? vPick : vCap);
+        cur = solveVT(vPick >= 0 ? vPick : vTop);
         var hh = cur.h;
         var exx = cur.vy * hh / GM - erx;
         var eyy = -cur.vx * hh / GM - ery;
