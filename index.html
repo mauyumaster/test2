@@ -22,6 +22,7 @@
   <style>
     :root {
       --bg: #0a0b0f;
+      --lane: 640px;      /* 正文栏宽度：.hero-l / .spec / .wlist / .log / .about 共用 */
       --card: #0f1117;
       --raise: #15171e;
       --line: rgba(255, 255, 255, .075);
@@ -217,11 +218,12 @@
       /* 只写上下：左右留给 .wrap，否则本元素的简写会把 .wrap 的左右内边距挤掉 */
       padding-top: 84px;
       padding-bottom: 78px;
-      display: grid;
-      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-      gap: 56px;
-      align-items: end;
     }
+
+    /* 首屏改单列：右半屏整个让给恒星系。原来那张规格表正好压在本该属于黑洞
+       的位置上 —— 文字和吸积盘互相抢，两边都不好看。现在它变成左列下面
+       一条四格横条，宽度收在左列里，不伸进右侧。 */
+    .hero-l { max-width: var(--lane); }
 
     @keyframes fall {
       from { transform: translate3d(0, -12%, 0); }
@@ -300,28 +302,27 @@
       border-color: transparent;
     }
 
-    /* 右侧规格表：用等宽字排版做视觉重量，替代首屏大图 */
+    /* 左列下面的四格横条：用等宽字做视觉重量，替代首屏大图 */
     .spec {
-      margin: 0;
-      border-left: 1px solid var(--line);
-      padding-left: 34px;
+      margin: 42px 0 0;
+      display: grid;
+      /* 两列而不是四列：「凌晨两点零七分 · 便利店」在四分之一栏里会折成两行 */
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 24px;
+      max-width: var(--lane);
     }
 
     .spec > div {
-      display: flex;
-      gap: 16px;
-      padding: 11px 0;
-      border-bottom: 1px solid var(--line);
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
     }
 
-    .spec > div:last-child { border-bottom: 0; padding-bottom: 0; }
-
     .spec dt {
-      flex: 0 0 72px;
+      margin: 0 0 5px;
       font-family: var(--mono);
       font-size: 11px;
       letter-spacing: .12em;
-      line-height: 1.75;
+      line-height: 1.6;
       color: var(--fg-3);
       text-transform: uppercase;
     }
@@ -348,6 +349,8 @@
       padding-bottom: 22px;
       border-bottom: 1px solid var(--line);
       margin-bottom: 26px;
+      /* 正文一律收进 --lane 宽的左栏，右边整片留给恒星系，两边不重叠 */
+      max-width: var(--lane);
     }
 
     h2 {
@@ -441,7 +444,7 @@
       list-style: none;
       margin: 0;
       padding: 0;
-      max-width: 860px;
+      max-width: var(--lane);
       border-top: 1px solid var(--line);
     }
 
@@ -494,11 +497,10 @@
 
     /* ---------- 关于 ---------- */
 
+    /* 关于区也收进左栏：原来右边的 300px 表格正落在恒星系的舞台上。
+       改成上下排 —— 正文，然后一张两列的规格条。 */
     .about {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 300px;
-      gap: 56px;
-      align-items: start;
+      max-width: var(--lane);
     }
 
     .about p {
@@ -514,23 +516,23 @@
     .about strong { color: var(--fg); font-weight: 500; }
 
     .facts {
-      margin: 0;
-      border-top: 1px solid var(--line);
+      margin: 30px 0 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 24px;
     }
 
     .facts > div {
-      display: flex;
-      gap: 14px;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--line);
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
     }
 
     .facts dt {
-      flex: 0 0 62px;
+      margin: 0 0 5px;
       font-family: var(--mono);
       font-size: 11px;
       letter-spacing: .12em;
-      line-height: 1.75;
+      line-height: 1.6;
       color: var(--fg-3);
       text-transform: uppercase;
     }
@@ -591,12 +593,12 @@
       }
 
       .spec {
-        border-left: 0;
-        border-top: 1px solid var(--line);
-        padding: 20px 0 0;
+        gap: 0 20px;
+        max-width: none;
+        margin-top: 32px;
       }
 
-      .about { grid-template-columns: 1fr; gap: 36px; }
+      .about { max-width: none; }
       .sect { padding-top: 78px; }
       .foot { margin-top: 78px; }
     }
@@ -628,7 +630,7 @@
       .btn:hover { transform: none; }
     }
 
-    /* ---------- 黑洞：固定层装饰，中心大多在屏幕外 ---------- */
+    /* ---------- 黑洞：固定层装饰，垫在内容之下（z-index:1） ---------- */
     #hole {
       position: fixed;
       left: 0;
@@ -653,7 +655,7 @@
       left: 0;
       top: 0;
       display: block;
-      width: clamp(132px, 19vw, 232px);
+      width: clamp(104px, 11.6vw, 164px);
       aspect-ratio: 1;
       text-decoration: none;
       color: inherit;
@@ -713,27 +715,41 @@
       list-style: none;
       margin: 0;
       padding: 0;
-      max-width: 720px;
+      max-width: var(--lane);
       border-top: 1px solid var(--line);
     }
     .wlist li { border-bottom: 1px solid var(--line); }
     .wlist a {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 20px;
-      align-items: baseline;
-      padding: 14px 2px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      padding: 15px 2px;
       text-decoration: none;
       color: inherit;
     }
     .wlist b { font-weight: 600; font-size: 14.5px; transition: color .18s var(--ease); }
-    .wlist span { font-size: 12.5px; color: var(--fg-3); text-align: right; }
+    .wlist span { font-size: 12.5px; line-height: 1.6; color: var(--fg-3); }
     .wlist a:hover b { color: var(--accent); }
     .wlist a:hover span { color: var(--fg-2); }
 
+    /* 只在能悬停、能拖拽的宽屏上才提这件事 */
+    .wide-only { display: none; }
+    @media (min-width: 901px) { .wide-only { display: inline; } }
+
     @media (max-width: 640px) {
-      .wlist a { grid-template-columns: 1fr; gap: 4px; }
-      .wlist span { text-align: left; }
+      .wlist a { gap: 4px; }
+    }
+
+    /* 窄屏没有悬停、也放不下三条轨道：恒星系退成纯氛围，
+       入口交给上面的文字清单（.wlist）。键盘仍可 Tab 到星球。 */
+    @media (max-width: 900px) {
+      /* 窄屏正文是整宽的，星球躲不开 —— 索性整层沉到内容之下（z-index:1）。
+         文字永远在上，星球只是背景里的一点动静，也不接指针。 */
+      #cosmos { z-index: 1; }
+      /* 手机上一颗 104px 的球占屏宽 27%，比整条轨道还大。窄屏缩一档；
+         900px 处 13.5vw=121>104 被上限截住，正好与桌面的 104px 接上。 */
+      .planet { width: clamp(72px, 13.5vw, 104px); pointer-events: none; }
+      .planet .info { display: none; }
     }
   </style>
   <noscript>
@@ -746,7 +762,7 @@
 
   <!-- 星场：固定层，铺满视口，垫在全部内容之下。纯 canvas，不加载任何外部资源。 -->
   <canvas id="sky" aria-hidden="true"></canvas>
-  <!-- 黑洞：固定层装饰，中心大多在屏幕外，只露出一部分 -->
+  <!-- 黑洞：固定层装饰，垫在内容之下。中心在视口里，事件视界看得见 -->
   <div id="hole" aria-hidden="true"><canvas></canvas></div>
 
   <!-- 恒星系交互层：作品即星球。悬停出卡、拖动改变轨道、点击进入作品。 -->
@@ -831,7 +847,7 @@
     <section id="works" class="wrap sect">
       <header class="sect-h rv">
         <h2>作品</h2>
-        <p class="sect-n">三件作品是右缘黑洞旁的三颗星球——悬停看清它，拖着甩出去会改变轨道，点一下进入</p>
+        <p class="sect-n">三件作品是右侧黑洞旁的三颗星球<span class="wide-only">——悬停看清它，拖着甩出去会改变轨道，点一下进入</span></p>
         <span class="count">03 件</span>
       </header>
 
@@ -1033,9 +1049,11 @@
   <script>
     /* ================= 恒星系：黑洞 ＋ 作品星球 =================
 
-       整个页面是一小片恒星系：右缘悬着一个巨大的黑洞（吸积盘 + 光子环 +
-       事件视界，大部分藏在屏幕外），三件作品是绕它运行的三颗星球。星场是
+       整个页面是一小片恒星系：右侧悬着一个黑洞（吸积盘 + 光子环 + 事件
+       视界，中心在视口里、看得见），三件作品是绕它运行的三颗星球。星场是
        背景尘埃，会绕黑洞发生引力透镜偏折（星点被径向推开并增亮）。
+       黑洞垫在内容之下（z-index:1）——它是景；星球浮在内容之上（z-index:5）
+       并且可交互。所以恒星系整片压不到正文的可读性，只有星球会从字上掠过。
 
        星球：
        - 平时沿各自的开普勒椭圆绕黑洞运行。焦点在黑洞中心，不是椭圆中心：
@@ -1048,7 +1066,8 @@
          能量给 a、角动量给 e、偏心向量给近点方向 ω 与真近点角 ν。
          速度被钳在 0.78 × 该距离的圆轨道速度（逃逸需 ≥ √2 ≈ 1.41，所以
          必然束缚）；再保证切向分量足以让 e ≤ E_MAX —— 星球不会一头栽进
-         黑洞，轨道必然落在安全区里。距离钳制（rSafe）保证新轨道不飞出屏幕。
+         黑洞，轨道必然落在安全区里。松手后由 fitOrbit 把新轨道等比收进
+         orbitPad，保证它不飞出屏幕、也保持住解出来的形状。
        - 点击（位移 ≤ 6px）仍打开作品。轨道改变只在本页会话内生效。
 
        性能与降级：位移每帧只写 transform / opacity（不触发重排），贴图重绘
@@ -1068,27 +1087,83 @@
       var STARS_MAX = 240;
       var W = 0, H = 0, DPR = 1;
       var stars = [], trails = [];
+      /* 星场按透明度分 10 档：每档只设一次 fillStyle，把几百次
+         字符串拼接和状态切换压成十次。观感不变。 */
+      var SKY_STEPS = 10, skyBins = [];
+      for (var _b = 0; _b < SKY_STEPS * 2; _b++) skyBins.push([]);
       var raf = 0, last = 0, phase = 0;
       var hAcc = 0, hPh = 0;
 
       var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
       function reduce() { return !!(mq && mq.matches); }
+      /* 触屏没有「悬停」：pointerenter 会在按下时触发，于是卡片一闪就跳走。
+         只在真能悬停的设备上启用悬停卡与拖拽。 */
+      var mqh = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : null;
+      function canHover() { return !mqh || mqh.matches; }
 
       /* ---------- 黑洞几何 ----------
          中心大多时间在屏幕外（桌面：右缘外；窄屏：屏幕右部），只露出一部分。
          轨道平面在屏幕上纵向压缩 TILT 倍 —— 像侧着看一个盘，也把竖直行程
          收窄，星球不会跑到文字上方去。 */
       var RH = 0, HC = { x: 0, y: 0 };
-      var TILT = 0.55;
+      var TILT = 0.55;              /* 轨道平面的纵向压缩：像侧着看一个盘 */
+      /* 盘面、光子环、事件视界共用这一个压扁系数 —— 三者不同平面的话，
+         视界会比同一半径上的盘面高出一截，像「一个球卡在盘子里」。 */
+      var NARROW = false;
+      var TOP_BAR = 96;             /* 星球不许钻进粘性顶栏 */
+      var SYS_OP = 1;               /* 整个恒星系的透明度系数（窄屏压低） */
+
+      /* 黑洞中心必须落在视口里 —— 事件视界和光子环看不见的话，「黑洞」就只是
+         一圈从屏幕外漏进来的弧。桌面靠右（右半屏是它的舞台），窄屏挪到右上角。 */
       function holeGeom() {
-        RH = Math.round(Math.max(170, Math.min(430, Math.min(W, H) * 0.42)));
-        HC.x = W >= 900 ? Math.round(W + RH * 0.30) : Math.round(W * 0.80);
-        HC.y = Math.round(H * (W >= 900 ? 0.60 : 0.58));
+        /* ⚠ 断点必须与 CSS 的 @media (max-width: 900px) 一致 —— 那边含 900，
+           这里写成 W < 900 的话，正好 900px 时 JS 当桌面、CSS 当窄屏：
+           星球按桌面尺寸摆位却不接指针，尺寸也对不上。 */
+        NARROW = W <= 900;
+        RH = Math.round(Math.max(96, Math.min(300, Math.min(W, H) * (NARROW ? 0.28 : 0.30))));
+        /* 窄屏锚点不再写死 0.86W：那样右侧只剩 0.14W，轨道没有落脚处，
+           星球只能飞出屏外（实测 390 宽下整球可见率 13/19/44%）。
+           改成「盘面右缘 + 8px 留在屏内」—— 黑洞整个看得见，右边也腾出
+           放轨道的地方；0.60W 是下限，免得宽一点的平板上盘面压到正文。 */
+        HC.x = NARROW ? Math.round(Math.max(W * 0.60, W - RH - 8)) : Math.round(W * 0.855);
+        HC.y = Math.round(H * (NARROW ? 0.28 : 0.56));
+        TOP_BAR = NARROW ? 88 : 96;
+        SYS_OP = NARROW ? 0.52 : 1;
+        measureLane();
       }
-      /* 距黑洞的最大安全半径：再远，轨道就会在某一个方向上冲出屏幕 */
-      function rSafe() {
-        var top = 96;
-        return Math.max(150, Math.min(HC.x - 46, (HC.y - top) / TILT, (H - 46 - HC.y) / TILT));
+
+      /* 正文栏右边缘：由 .wrap 实测，不写死像素 —— 视口一变，
+         .wrap 的居中位置就变，写死的数字立刻会跟版面错位。 */
+      var LANE_R = 0;
+      function measureLane() {
+        LANE_R = W * 0.42;
+        var el = document.querySelector('.wrap');
+        if (!el) return;
+        var r = el.getBoundingClientRect();
+        var pl = parseFloat(window.getComputedStyle(el).paddingLeft) || 0;
+        var v = r.left + pl + 640;      /* 640 = CSS 里的 --lane */
+        if (v > 0) LANE_R = v;
+      }
+
+      /* 星球的实际半径。**实测 DOM，不再手抄 CSS 的 clamp** ——
+         clamp 已经有两处（桌面一条、窄屏一条），JS 再抄一份就是三份，
+         改一处忘一处：窄屏把球缩到 72px 后，这里仍按 ≥104px 内缩 pad，
+         轨道被过度收紧，而球照样飞出屏外（实测过）。 */
+      function planetHalf() {
+        var el = document.querySelector('.planet');
+        if (el) { var m = el.offsetWidth; if (m > 0) return m / 2; }
+        var w = W * 0.116;                       /* 兜底：与桌面 clamp 同式 */
+        if (w < 104) w = 104; else if (w > 164) w = 164;
+        return w / 2;
+      }
+
+      /* 轨道必须落进这一块矩形。- 桌面＝右侧半屏；窄屏＝右上角，不压正文。
+         边界要按星球半径内缩，否则星球中心还在区内、半个身子已出屏。 */
+      function orbitPad() {
+        var ph = planetHalf();
+        return NARROW
+          ? { x0: W * 0.30 + ph, x1: W - ph - 6, y0: TOP_BAR + ph + 6, y1: H * 0.44 }
+          : { x0: LANE_R + 38 + ph, x1: W - ph - 6, y0: TOP_BAR + ph + 6, y1: H - ph - 10 };
       }
 
       function seed() {
@@ -1112,11 +1187,14 @@
         }
       }
 
-      /* 星场：缓慢斜向漂移 ＋ 绕黑洞中心的引力透镜偏折 */
+      /* 星场：缓慢斜向漂移 ＋ 绕黑洞中心的引力透镜偏折。
+         先按透明度归档，再一档一次 beginPath/arc/fill —— 一批同类星点合成
+         一条路径，省掉每帧几百次 fillStyle 赋值与状态切换。 */
       function drawSky(dt) {
         if (!ctx) return;
-        var LR = RH * 1.05, LS = RH * 0.30;
-        for (var i = 0; i < stars.length; i++) {
+        var LR = RH * 1.05, LS = RH * 0.30, i, k;
+        for (i = 0; i < skyBins.length; i++) skyBins[i].length = 0;
+        for (i = 0; i < stars.length; i++) {
           var s = stars[i];
           if (dt) {
             s.x += s.vx * dt;
@@ -1135,9 +1213,24 @@
             y += dy / (dd || 1) * sh;
             a = Math.min(0.85, a * (1 + f * 0.9));
           }
-          ctx.fillStyle = 'rgba(' + (s.am ? AM : '255, 255, 255') + ', ' + a.toFixed(3) + ')';
+          if (a <= 0.012) continue;
+          var bi = ((a * SKY_STEPS) | 0);
+          if (bi > SKY_STEPS - 1) bi = SKY_STEPS - 1;
+          if (s.am) bi += SKY_STEPS;
+          var arr = skyBins[bi];
+          arr.push(x, y, s.r);
+        }
+        for (i = 0; i < skyBins.length; i++) {
+          var pts = skyBins[i];
+          if (!pts.length) continue;
+          var amber = i >= SKY_STEPS;
+          ctx.fillStyle = 'rgba(' + (amber ? AM : '255, 255, 255') + ', ' +
+            (((amber ? i - SKY_STEPS : i) + 0.5) / SKY_STEPS).toFixed(3) + ')';
           ctx.beginPath();
-          ctx.arc(x, y, s.r, 0, 6.283);
+          for (k = 0; k < pts.length; k += 3) {
+            ctx.moveTo(pts[k] + pts[k + 2], pts[k + 1]);
+            ctx.arc(pts[k], pts[k + 1], pts[k + 2], 0, 6.283);
+          }
           ctx.fill();
         }
       }
@@ -1157,55 +1250,64 @@
       }
 
       /* ---------- 黑洞：吸积盘 + 光子环 + 事件视界 ----------
-         中心在屏幕外，只露出一部分。吸积盘画成一组同心椭圆带（屏幕上的椭圆
-         就是侧视投影），内圈白热、外圈暗红；相位使带上的明暗沿角度缓慢旋转，
-         像盘在打转。每一帧只重画这几十条 stroke，成本可忽略。 */
+         吸积盘画成一组同心椭圆带（屏幕上的椭圆就是侧视投影），内圈白热、
+         外圈暗红；相位让带上的明暗沿角度缓慢旋转，像盘在打转。
+         盘是整个页面的「景」，垫在内容之下，所以整体压暗一档。 */
       function drawHole(ph) {
         if (!hctx) return;
         var S = Math.ceil(RH * 2), d = DPR;
         if (holeCv.width !== S * d) { holeCv.width = S * d; holeCv.height = S * d; }
-        holeCv.style.width = S + 'px';
-        holeCv.style.height = S + 'px';
-        holeCv.style.transform = 'translate3d(' + (HC.x - S / 2).toFixed(1) + 'px,' +
+        var tf = 'translate3d(' + (HC.x - S / 2).toFixed(1) + 'px,' +
           (HC.y - S / 2).toFixed(1) + 'px,0)';
+        if (holeCv.style.width !== S + 'px') {
+          holeCv.style.width = S + 'px';
+          holeCv.style.height = S + 'px';
+        }
+        if (holeCv.style.transform !== tf) holeCv.style.transform = tf;
         hctx.setTransform(d, 0, 0, d, 0, 0);
         hctx.clearRect(0, 0, S, S);
         var cx = S / 2, cy = S / 2;
-        var rHole = RH * 0.155, ring = RH * 0.225, rIn = RH * 0.26, rOut = RH;
-        for (var i = 0; i < 44; i++) {
-          var t = i / 44;
-          var r = rIn + (rOut - rIn) * (t * t);
-          var a0 = 0.92 * (1 - t) + 0.10;
-          var cr = 255, cg = Math.round(196 - t * 120), cb = Math.round(120 - t * 110);
+        var rHole = RH * 0.155, ring = RH * 0.225, rIn = RH * DISK_IN_F, rOut = RH;
+        /* 等距的 52 条带，线宽（1.9× 间距）盖住相邻的空隙 —— 描边互相压住，
+           出来是一张连续的盘面。上一版用 t² 分布配固定线宽，越往外越稀，
+           屏幕上就是一道道数得出来的斑马纹。 */
+        var RN = 52, dr = (rOut - rIn) / RN, lw = Math.max(1.6, dr * 1.9);
+        /* 多普勒增亮做成「每个色带一条横向渐变」：左亮右暗是连续的。
+           上一版是把画布左半边裁出来、在上面叠一组更亮的环 —— 裁剪边界
+           正好落在洞心，盘面上就留下一条笔直的竖缝，像被切开两半。 */
+        var gl = cx - rOut, gr = cx + rOut;
+        var bands = [
+          [0.34, 'rgba(255,251,238,1)', 'rgba(255,216,158,1)'],
+          [0.67, 'rgba(255,230,178,1)', 'rgba(230,144,74,1)'],
+          [1.01, 'rgba(234,160,100,1)', 'rgba(118,68,42,1)']
+        ];
+        var grads = [];
+        for (i = 0; i < bands.length; i++) {
+          var g = hctx.createLinearGradient(gl, 0, gr, 0);
+          g.addColorStop(0, bands[i][1]);
+          g.addColorStop(1, bands[i][2]);
+          grads.push(g);
+        }
+        for (i = 0; i < RN; i++) {
+          t = (i + 0.5) / RN;
+          var r = rIn + dr * (i + 0.5);
           var sw = 0.35 + 0.4 * Math.sin(ph + t * 14);
-          hctx.strokeStyle = 'rgba(' + cr + ',' + cg + ',' + cb + ',' +
-            (a0 * (0.55 + 0.45 * sw)).toFixed(3) + ')';
-          hctx.lineWidth = Math.max(1.2, r * 0.02);
+          hctx.globalAlpha = Math.min(1, (0.68 * (1 - t) + 0.09) * (0.55 + 0.45 * sw));
+          hctx.strokeStyle = grads[t < bands[0][0] ? 0 : (t < bands[1][0] ? 1 : 2)];
+          hctx.lineWidth = lw;
           hctx.beginPath();
-          hctx.ellipse(cx, cy, r, r * 0.36, 0, 0, 6.2832);
+          hctx.ellipse(cx, cy, r, r * TILT, 0, 0, 6.2832);
           hctx.stroke();
         }
-        /* 左半边多普勒增亮：靠近观测者的一侧更亮 */
-        hctx.save();
+        hctx.globalAlpha = 1;
+        /* 视界和光子环跟盘面用同一个压扁系数。画成正圆的话，它比同一半径上的
+           盘面高出一截，看起来像「一个球卡在盘子里」。 */
         hctx.beginPath();
-        hctx.rect(0, 0, cx, S);
-        hctx.clip();
-        for (i = 0; i < 30; i++) {
-          var t2 = i / 30;
-          var r2 = rIn + (rOut - rIn) * (t2 * t2);
-          hctx.strokeStyle = 'rgba(255, 236, 200,' + (0.30 * (1 - t2)).toFixed(3) + ')';
-          hctx.lineWidth = Math.max(1.2, r2 * 0.02);
-          hctx.beginPath();
-          hctx.ellipse(cx, cy, r2, r2 * 0.36, 0, 0, 6.2832);
-          hctx.stroke();
-        }
-        hctx.restore();
-        hctx.beginPath();
-        hctx.arc(cx, cy, rHole, 0, 6.2832);
+        hctx.ellipse(cx, cy, rHole, rHole * TILT, 0, 0, 6.2832);
         hctx.fillStyle = '#000';
         hctx.fill();
         hctx.beginPath();
-        hctx.arc(cx, cy, ring, 0, 6.2832);
+        hctx.ellipse(cx, cy, ring, ring * TILT, 0, 0, 6.2832);
         hctx.strokeStyle = 'rgba(255, 216, 160, .85)';
         hctx.lineWidth = 2.5;
         hctx.stroke();
@@ -1217,10 +1319,15 @@
       }
 
       /* ---------- 开普勒轨道 ---------- */
-      var GM = 1.4e7;            /* 引力常数（px³/s²）：r=420px 处圆轨道周期约 14.4s */
+      var GM = 1.6e6;            /* 引力常数（px³/s²）：a≈150px 处周期约 9s。再小轨道就太慢，再大拖拽就发木 */
       var VCLAMP = 0.78;         /* 松手速度上限（× 圆轨道速度）：必然束缚 */
       var E_MAX = 0.82;          /* 注入新轨道时偏心率上限（近点距仍 ≥ 0.18a） */
       var DRAG_PX = 6;           /* 位移超过 6px 才算拖拽，否则仍算点击 */
+      /* 视界 / 光子环 / 吸积盘内缘，各自 ÷ #hole canvas 半径。
+         盘内缘要单独留在外面：拖拽改轨的近点下限就取它 —— 新轨道可以靠近
+         黑洞，但不许扎进盘面。以前这个 0.26 只写在 drawHole 里，轨道这边
+         拿不到，只好整个去比 ORB.rpMin，结果松手点稍近就物理上够不到。 */
+      var DISK_IN_F = 0.26;
 
       var PLANETS = {
         city: {
@@ -1247,23 +1354,69 @@
         return ((h >>> 0) % 1000003) / 1000003;
       }
 
-      /* 初始轨道由名字推导：半长轴、偏心率、近点方向、初始真近点角。
-         近点朝右、藏在黑洞身后；远点朝左、落在可见区里 —— 开普勒让星球在
-         远点附近最慢，所以大部分时间都停在看得见的一侧。近点距钳到吸积盘外。 */
-      function orbitOf(name) {
-        var r1 = hseed(name, 1), r2 = hseed(name, 2), r3 = hseed(name, 3), r4 = hseed(name, 4);
-        var rmin = RH * 0.30 + 56;
-        var a = Math.max(rmin, Math.min(rSafe() * 0.54, rSafe() * (0.30 + r1 * 0.26)));
-        var e = 0.42 + r2 * 0.30;
-        if (a * (1 - e) < rmin) e = Math.min(e, 1 - rmin / a);
-        if (e < 0.05) e = 0.05;
+      /* ---- 几何量只在 resize 时算一次 ----
+         上一版把半长轴先钳到「近点距下限」，偏心率的约束又反过来把 a 压小，
+         两颗星球于是落到几乎同一条近圆小轨道上、挤在同一格。这里把两件事拆开：
+         **尺寸由视口的可用矩形决定，形状（e / ω / ν）才由名字决定。** */
+      var ORB = { rpMin: 0, rpMax: 0, raMin: 0, raMax: 0 };
+      function orbitFrame() {
+        var pad = orbitPad();
+        ORB.rpMin = Math.max(RH * 0.42, planetHalf() * 0.6);
+        ORB.raMax = Math.max(ORB.rpMin * 1.8, HC.x - pad.x0);   /* 远点朝左，用满到 pad 左边 */
+        ORB.raMin = Math.max(ORB.rpMin * 1.3, ORB.raMax * 0.62);
+        /* 近点朝右：能伸多远由「右侧还剩多少」定；同时别超过远点的 0.36 ——
+           近点一远，椭圆就接近正圆，「远点慢、近点快」的层次也就没了。 */
+        ORB.rpMax = Math.max(ORB.rpMin * 1.05,
+          Math.min(pad.x1 - HC.x, ORB.raMax * 0.50));
+      }
+
+      /* 初始轨道由名字推导：远点距 ra、偏心率 e、近点方向 ω、初始真近点角 ν。
+         远点朝左（落在可见的右半屏里）、近点朝右贴着盘 —— 开普勒让星球在远点
+         附近最慢，所以大部分时间都停在看得见的一侧。 */
+      function orbitOf(name, idx) {
+        var h1 = hseed(name, 1), h2 = hseed(name, 2), h3 = hseed(name, 3), h4 = hseed(name, 4);
+        /* 直接给远点距与近点距，再由两者反推 e —— 而不是先给 e、再算出
+           一个可能越界的近点（上一版就是这样被反复钳到一起的）。
+           于是「用满可用矩形」和「形状有区别」两件事互不打架。 */
+        /* 按页面顺序错开，哈希只负责抖动 —— 纯靠哈希的话，三颗的 h1 一旦
+           都落在低段，就会挤成几条几乎重合的轨道（实测过：a=147.5 / 153.8）。 */
+        var t1 = (idx * 0.37 + h1 * 0.34) % 1;
+        var t2 = (idx * 0.53 + h2 * 0.34) % 1;
+        var ra = ORB.raMin + (ORB.raMax - ORB.raMin) * t1;
+        var rp = ORB.rpMin + (ORB.rpMax - ORB.rpMin) * t2;
+        var e = (ra - rp) / (ra + rp);
         return {
-          a: a,
+          a: (ra + rp) / 2,
           e: e,
-          w: (r3 - 0.5) * 0.9,   /* 近点方向：±0.45 rad，藏在黑洞右后；远点自然朝左 */
-          th: Math.PI - (r3 - 0.5) * 0.9 + (r4 - 0.5) * 1.1
-            /* 初始真近点角：落在远点附近（左/可见侧），并沿竖直方向散开 */
+          w: (h3 - 0.5) * 0.86,        /* 近点方向：朝右偏一点，远点自然朝左 */
+          /* 起始真近点角：三颗都落在远点（左侧、看得见的那一侧）附近，按顺序
+             铺开约 100° —— 一进场就是「三颗星球挂在黑洞左边」，而不是某颗正
+             好压在洞口。之后周期不同，它们自己会散开。h4 负责抖动。 */
+          th: Math.PI + ((idx || 0) - 1) * 0.85 + (h4 - 0.5) * 0.5
         };
+      }
+
+      /* 把整条轨道等比收进 orbitPad。以黑洞为中心缩放：r(ν) ∝ a，所以只缩 a
+         就得到一条形状完全相同、尺寸乘 k 的轨道。对 96 个方向求「允许比例」，
+         取最小 —— 闭合形式，不用迭代，也不会像上一版那样把轨道压塌。 */
+      function fitOrbit(o) {
+        var pad = orbitPad(), e = o.e, a = o.a, k = 1, avail, t;
+        for (var i = 0; i < 96; i++) {
+          var nu = i / 96 * 6.2832;
+          var r = a * (1 - e * e) / (1 + e * Math.cos(nu));
+          var an = o.w + nu;
+          var dx = r * Math.cos(an), dy = r * Math.sin(an) * TILT;
+          /* 只有「这一侧确实还有余量」时才拿它当约束。窄屏上黑洞可能比 pad
+             的右边界还靠右，那时余量是负的 —— 直接相除会得到负的 k，
+             缩放因子成了负数，整条轨道会被判成「放得下」，星球就飞出去了。 */
+          if (dx > 0) { avail = pad.x1 - HC.x; if (avail > 0) { t = avail / dx; if (t < k) k = t; } }
+          else if (dx < 0) { avail = HC.x - pad.x0; if (avail > 0) { t = avail / -dx; if (t < k) k = t; } }
+          if (dy > 0) { avail = pad.y1 - HC.y; if (avail > 0) { t = avail / dy; if (t < k) k = t; } }
+          else if (dy < 0) { avail = HC.y - pad.y0; if (avail > 0) { t = avail / -dy; if (t < k) k = t; } }
+        }
+        if (k < 0.02) k = 0.02;
+        if (k < 1) o.a *= k;
+        return elems(o);
       }
 
       function elems(o) {
@@ -1292,53 +1445,119 @@
         if (z < 0) z = 0; else if (z > 1) z = 1;
         var sc = 1.07 - 0.14 * z;      /* 近大远小 */
         var op = 0.94 - 0.10 * z;      /* 近亮远暗 */
+        /* translate(-50%,-50%) 收在最后：CSS 变换从右往左作用，
+           先居中再缩放再平移，结果就是「球心永远落在 (q.x,q.y)」。
+           少了这一句，轨道算出来的点是盒子左上角，整条轨道会整体偏右下半个球。 */
         el.style.transform = 'translate3d(' + q.x.toFixed(1) + 'px,' + q.y.toFixed(1) +
-          'px,0) scale(' + sc.toFixed(4) + ')';
-        el.style.opacity = op.toFixed(3);
+          'px,0) scale(' + sc.toFixed(4) + ') translate(-50%,-50%)';
+        el.style.opacity = (op * SYS_OP).toFixed(3);
       }
 
       /* 用松手时的位置 + 速度解算新的开普勒轨道要素。
          能量 → a；角动量 → e；偏心向量 → 近点方向 ω 与真近点角 ν。 */
       function injectOrbit(p, x, y, vx, vy) {
-        var rx = x - HC.x, ry = y - HC.y;
+        /* 屏幕坐标 → 轨道平面：绘制时 y 被压了 TILT 倍（placePlanet 里
+           y = HC.y + r·sinν·TILT），所以反算回轨道平面要先把 y 除回来。
+           不除回来的话，解出的 (a,e,ω,ν) 是按「屏幕椭圆」成立的，再交给绘制
+           压一次 —— 松手瞬间星球会**竖直跳** 0.45×dy 像素。 */
+        var rx = x - HC.x, ry = (y - HC.y) / TILT;
         var r = Math.sqrt(rx * rx + ry * ry) || 1;
-        var sp = Math.sqrt(vx * vx + vy * vy);
-        var vc = VCLAMP * Math.sqrt(GM / r);
-        if (sp > vc && sp > 0) { vx *= vc / sp; vy *= vc / sp; sp = vc; }
         var erx = rx / r, ery = ry / r;
         var etx = -ery, ety = erx;
-        var vr = vx * erx + vy * ery;
-        var vt = vx * etx + vy * ety;
-        var a = 1 / (2 / r - (vx * vx + vy * vy) / GM);
-        /* e ≤ E_MAX 需要 h = r·vt 足够大（e² = 1 - h²/(GM·a)）。
-           不够就把切向补足，代价是压掉径向分量；总速度不超上限。 */
-        var vtMin = Math.sqrt((1 - E_MAX * E_MAX) * GM * a) / r;
-        if (vt < vtMin) {
-          vt = vtMin;
-          var cap2 = VCLAMP * VCLAMP * GM / r;
-          if (vr * vr + vt * vt > cap2) vr = Math.sqrt(Math.max(0, cap2 - vt * vt));
-          vx = vr * erx + vt * etx;
-          vy = vr * ery + vt * ety;
-          a = 1 / (2 / r - (vx * vx + vy * vy) / GM);
+        /* 速度也搬回轨道平面（vy 除回 TILT），再限总速 ≤ VCLAMP×圆轨道速度：
+           保证新轨道必然是束缚椭圆（VCLAMP<1 ⇒ 永远不会变成抛物线/双曲线）。 */
+        var ux = vx, uy = vy / TILT;
+        var sp = Math.sqrt(ux * ux + uy * uy);
+        var vCap = VCLAMP * Math.sqrt(GM / r);
+        if (sp > vCap && sp > 0) { ux *= vCap / sp; uy *= vCap / sp; sp = vCap; }
+        var vr0 = ux * erx + uy * ery;
+        var vt0 = ux * etx + uy * ety;
+        var sgn = vt0 < 0 ? -1 : 1;      /* 公转方向：别把逆向一甩掰成顺向 */
+        var sgnR = vr0 < 0 ? -1 : 1;     /* 径向：冲进来还是甩出去 */
+        var V = sp;
+
+        /* 旋钮只有一个：切向速度的绝对值 vta。径向按 vr = sgnR·√(V²−vta²)
+           让位 —— vta ≤ V 是「总速不变、方向从径向掰到切向」；vta > V 时径向
+           已归零，只能加速（到顶 vCap）。
+           近点 rp = a(1−e) 对 vta 单调递增（vta↑ → a↑ 且 e↓，两者一起抬高
+           近点），所以直接二分找**刚好**把 rp 抬到 rpFloor 的那个 vta；整段都
+           够不到（松手点离洞心太近、物理上就够不到）则取 vta = vCap 那个最好
+           值 —— 也就是「全切向」，它给出的是同一 r 下的近点上界。
+           ⚠ 三个坑，都实测踩过：
+             ① 老写法只卡 e ≤ E_MAX，而 E_MAX 是拿「改 vta 之前」的 a 反推的；
+                改完 a 变了、e 就悄悄翻过上限 —— 实测 a=75、e=0.84，近点只剩
+                12px（视界 37px）：星球贴着洞口打转、每圈扎进黑洞，周期塌到 3s。
+             ② 只放大切向而**冻住径向**同样不够：甩得越径向，能用的
+                √(V²−vr²) 越小 —— 实测又冒出 rp=20。必须允许「拿径向换切向」。
+             ③ rpFloor 不能取初始轨道的 ORB.rpMin：松手点半径不够时它物理上
+                就达不到（r 很小时近点的上界只有 ≈0.44r），硬卡会把每一次拖拽
+                都压成同一条近圆轨道，手感全没了。取盘内缘既安全又留住甩劲。
+             ④ 闸必须架在 fitOrbit **之后**：收屏是等比缩 a，近点跟着缩。
+                判据读收屏前的 rp，就会放行一条缩完扎进盘面的轨道（见 solveVT）。 */
+        var rpFloor = RH * DISK_IN_F;
+        /* 把一个候选切向速度解成轨道，并**立刻收进屏幕**再报告近点。
+           ⚠ 这是本题最贵的一课：判据必须读「收屏之后」的 rp。
+           fitOrbit 是按屏幕余量把 a 等比缩小的（o.a *= k），而 rp = a(1−e)
+           跟着乘同一个 k。先前把闸架在收屏之前，于是「原始轨道合法」被判过、
+           缩完却不合法 —— 实测原始 rp=63（刚好达标）→ k=0.66 → 落屏 rp=41，
+           只比 37px 的事件视界高 1.1 倍。截图里只是一颗「偶尔贴得有点近」的
+           球，看不出来；只有把 k 算出来才对得上账。
+           fits 记录「这条轨道收屏时有没有被缩」：没缩 ⇒ 松手点没被搬动。 */
+        function solveVT(vta) {
+          var vrn = sgnR * Math.sqrt(Math.max(0, V * V - vta * vta));
+          var wx = vrn * erx + vta * sgn * etx;
+          var wy = vrn * ery + vta * sgn * ety;
+          var a2 = 1 / (2 / r - (wx * wx + wy * wy) / GM);
+          if (!(a2 > 0)) return { vx: wx, vy: wy, h: 0, a: 0, e: 1, w: 0, th: 0, rp: 0, rpf: 0, fits: false };
+          var h2 = rx * wy - ry * wx;
+          var e2 = Math.sqrt(Math.max(0, 1 - h2 * h2 / (GM * a2)));
+          var exx2 = wy * h2 / GM - erx, eyy2 = -wx * h2 / GM - ery;
+          var w2 = Math.atan2(eyy2, exx2);
+          var nu2 = Math.atan2(erx * eyy2 - ery * exx2, erx * exx2 + ery * eyy2);
+          if (e2 < 0.05) { w2 = 0; nu2 = Math.atan2(-ery, erx); }   /* 近圆时方向不可辨，与绘制端一致 */
+          var f2 = fitOrbit({ a: a2, e: e2 < 0.05 ? 0.05 : e2, w: w2, th: nu2 });
+          return {
+            vx: wx, vy: wy, h: h2, a: a2, e: e2, w: w2, th: nu2,
+            rp: a2 * (1 - e2), rpf: f2.rp, fits: f2.a >= a2 - 1e-6
+          };
         }
-        var hh = rx * vy - ry * vx;
-        var exx = vy * hh / GM - erx;
-        var eyy = -vx * hh / GM - ery;
-        var e = Math.sqrt(exx * exx + eyy * eyy);
+        /* 两级判据。随 vta 增大：e 单调降 → 近点升、轨道变瘦更贴屏，两个条件
+           都单调变好，所以二分成立。
+           okStrict 先要求 fits —— 收屏不缩 ⇒ 松手点不动 ⇒ 不跳。
+           够不到才退到 okLoose（允许缩一点），最后才退到「全切向取最好」。 */
+        function okStrict(vta) {
+          var q = solveVT(vta);
+          return q.a > 0 && q.rpf >= rpFloor - 0.5 && q.e <= E_MAX + 1e-9 && q.fits;
+        }
+        function okLoose(vta) {
+          var q = solveVT(vta);
+          return q.a > 0 && q.rpf >= rpFloor - 0.5 && q.e <= E_MAX + 1e-9;
+        }
+        function bisectV(pred) {
+          if (pred(vta0)) return vta0;      /* 用户甩出来的本就合法，原样保留 */
+          if (!pred(vCap)) return -1;
+          var loV = vta0, hi2 = vCap;
+          for (var it = 0; it < 32; it++) {
+            var midV = (loV + hi2) / 2;
+            if (pred(midV)) hi2 = midV; else loV = midV;
+          }
+          return hi2;                        /* 单调 → 「刚好达标」的最小 vta */
+        }
+        var vta0 = Math.abs(vt0), cur;
+        var vPick = bisectV(okStrict);
+        if (vPick < 0) vPick = bisectV(okLoose);
+        /* 两档都够不到：松手点离洞心太近，同一半径下近点的上界就是 ≈0.437r
+           —— 取全切向，那是能拿到的最好值（注释③说的情形）。 */
+        cur = solveVT(vPick >= 0 ? vPick : vCap);
+        var hh = cur.h;
+        var exx = cur.vy * hh / GM - erx;
+        var eyy = -cur.vx * hh / GM - ery;
+        var e = cur.e;
         if (e < 0.05) { e = 0.05; exx = 1; eyy = 0; }
-        /* 兜底：数值误差下 e 略超上限时，把径向分量再压一压 */
-        for (var guard = 0; guard < 3 && e > E_MAX; guard++) {
-          vr *= 0.5;
-          vx = vr * erx + vt * etx;
-          vy = vr * ery + vt * ety;
-          hh = rx * vy - ry * vx;
-          exx = vy * hh / GM - erx;
-          eyy = -vx * hh / GM - ery;
-          e = Math.sqrt(exx * exx + eyy * eyy);
-        }
         var w = Math.atan2(eyy, exx);
         var nu = Math.atan2(erx * eyy - ery * exx, erx * exx + ery * eyy);
-        p.orbit = elems({ a: a, e: e, w: w, th: nu });
+        p.moved = 1;                  /* 记下「这颗是用户改过轨道的」，resize 时别覆盖 */
+        p.orbit = fitOrbit({ a: cur.a, e: e, w: w, th: nu });
       }
 
       /* ---------- 星球 ---------- */
@@ -1554,10 +1773,9 @@
         node.addEventListener('dragstart', function (e) { e.preventDefault(); });
 
         node.addEventListener('pointerdown', function (e) {
-          if (reduce()) return;
+          if (reduce() || !canHover()) return;
           c.down = 1; c.dragging = 0; c.sup = 0;
           c.sx = e.clientX; c.sy = e.clientY;
-          c.lx = e.clientX; c.ly = e.clientY;
           c.vx = 0; c.vy = 0;
           c.hist.length = 0;
           var q = posOf(c);
@@ -1580,14 +1798,18 @@
           var x = c.bx + (e.clientX - c.sx), y = c.by + (e.clientY - c.sy);
           /* 钳制：距黑洞距离 ∈ [吸积盘外, 安全半径]，且不出屏幕。
              交替钳两次，收敛到两个凸约束的交集里。 */
-          var rMin = RH * 0.30 + 56, rMax = rSafe() * 0.7646;
+          var half = node.offsetWidth * 0.5;
+          var rMin = ORB.rpMin, rMax = ORB.raMax;
           for (var pass = 0; pass < 2; pass++) {
             var rx = x - HC.x, ry = y - HC.y;
             var dd = Math.sqrt(rx * rx + ry * ry) || 1;
             if (dd > rMax) { x = HC.x + rx * (rMax / dd); y = HC.y + ry * (rMax / dd); }
             else if (dd < rMin) { x = HC.x + rx * (rMin / dd); y = HC.y + ry * (rMin / dd); }
-            if (x < 40) x = 40; else if (x > W - 40) x = W - 40;
-            if (y < 96) y = 96; else if (y > H - 40) y = H - 40;
+            var xl = half + 8, xr = W - half - 8;
+            var yt = TOP_BAR + half, yb = H - half - 8;
+            if (yb < yt) yt = yb = (yt + yb) * 0.5;
+            if (x < xl) x = xl; else if (x > xr) x = xr;
+            if (y < yt) y = yt; else if (y > yb) y = yb;
           }
           c.dx = x; c.dy = y;
           var rxx = x - HC.x, ryy = y - HC.y;
@@ -1651,15 +1873,15 @@
             node: node, orb: node, cv: cv, g: cv.getContext('2d'), tex: mkTex(name),
             rot: Math.random(), size: 0,
             img: null, kind: null, rb: null, cb: null, sh: null, gw: null, ew: null, ga: null,
-            orbit: null, hold: 0,
+            name: name, orbit: null, hold: 0, moved: 0,
             down: 0, dragging: 0, sup: 0,
-            sx: 0, sy: 0, lx: 0, ly: 0, bx: 0, by: 0, dx: 0, dy: 0, dr: 0,
+            sx: 0, sy: 0, bx: 0, by: 0, dx: 0, dy: 0, dr: 0,
             hist: [], trail: null
           };
-          p.orbit = elems(orbitOf(name));
+          p.orbit = fitOrbit(orbitOf(name, planets.length));
           node.__planet = p;
           (function (pp) {
-            node.addEventListener('pointerenter', function () { setHold(pp, 1); });
+            node.addEventListener('pointerenter', function () { if (canHover()) setHold(pp, 1); });
             node.addEventListener('pointerleave', function () { if (!pp.down) setHold(pp, 0); });
             node.addEventListener('focusin', function () { if (!pp.down) setHold(pp, 1); });
             node.addEventListener('focusout', function () { setHold(pp, 0); });
@@ -1721,18 +1943,21 @@
         DPR = Math.min(2, window.devicePixelRatio || 1);
         W = w; H = h;
         holeGeom();
+        orbitFrame();
         if (ctx) {
           sky.width = Math.round(W * DPR);
           sky.height = Math.round(H * DPR);
           ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
           if (widthChanged || !stars.length) seed();
         }
-        /* 新窗口下轨道不能飞出屏幕：收紧半长轴 */
-        var aMax = rSafe() / (1 + E_MAX);
+        /* 换尺寸就重算轨道。没被拖过的按新几何重新推导（宽度变了半径也要变）；
+           拖过的保住形状，只按新边界等比收放 —— 缩放窗口时星球不会瞬移，
+           也不会像上一版那样一路被钳成贴着屏幕边的小圆。 */
         for (var i = 0; i < planets.length; i++) {
-          var o = planets[i].orbit;
-          if (o.a > aMax) o.a = aMax;
-          elems(o);
+          var p = planets[i];
+          if (!p.orbit) continue;
+          if (widthChanged && !p.moved) p.orbit = orbitOf(p.name, i);
+          fitOrbit(p.orbit);
         }
       }
 
