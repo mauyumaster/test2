@@ -1347,6 +1347,7 @@
          提到这里 —— 半径 r 处能拿到的最好近点只有 0.44r（VCLAMP 下），抬到 0.95 是 0.82r，
          差的就是「球扎进盘内缘」和「球擦着盘内缘走」这一档。0.95 < 1 ⇒ 仍是束缚椭圆。 */
       var VHARD = 0.95;
+      var VGRID = 24;           /* 速度格点数：求解器扫它，拖拽期的「有解」判据也用同一套 */
       var E_MAX = 0.82;          /* 注入新轨道时偏心率上限（近点距仍 ≥ 0.18a） */
       var DRAG_PX = 6;           /* 位移超过 6px 才算拖拽，否则仍算点击 */
       /* 视界 / 光子环 / 吸积盘内缘，各自 ÷ #hole canvas 半径。
@@ -1435,8 +1436,8 @@
       /* 把整条轨道等比收进 orbitPad。以黑洞为中心缩放：r(ν) ∝ a，所以只缩 a
          就得到一条形状完全相同、尺寸乘 k 的轨道。对 96 个方向求「允许比例」，
          取最小 —— 闭合形式，不用迭代，也不会像上一版那样把轨道压塌。 */
-      function fitOrbit(o) {
-        var pad = orbitPad(), e = o.e, a = o.a, k = 1, avail, t;
+      function fitOrbit(o, padIn) {
+        var pad = padIn || orbitPad(), e = o.e, a = o.a, k = 1, avail, t;
         for (var i = 0; i < 96; i++) {
           var nu = i / 96 * 6.2832;
           var r = a * (1 - e * e) / (1 + e * Math.cos(nu));
@@ -1453,6 +1454,57 @@
         if (k < 0.02) k = 0.02;
         if (k < 1) o.a *= k;
         return elems(o);
+      }
+
+      /* 落点 (px,py) 上「有没有一条收得进屏的轨道」。
+         只查纯切向那一族：远点 ≡ r（与速度无关），近点 = r·m/(2−m) 随速度单调涨
+         —— 也就是同一落点下**最收得住**的一族。它全都不行，就真的没解。
+         ⚠ 速度格点必须与求解器（injectOrbit 的细扫）用同一套：
+         判据说「有解」而求解器取不到，松手时还是会被迫缩一下 —— 那就白做了。 */
+      function solvable(px, py, pad) {
+        var prx = px - HC.x, pry = (py - HC.y) / TILT;
+        var rP = Math.sqrt(prx * prx + pry * pry);
+        if (!(rP > 1)) return false;
+        /* m 的下界有两个来源：e = 1−m ≤ E_MAX，以及 rp = r·m/(2−m) ≥ 吸积盘内缘 */
+        var fl = RH * DISK_IN_F;
+        var mMin = 1 - E_MAX;
+        var mR = 2 * fl / (rP + fl);
+        if (mR > mMin) mMin = mR;
+        /* ⚠ fitOrbit 的约定是**远点在 w+π**（近点在 w）。纯切向甩出去时松手点
+           就在远点上，所以这里必须传 wP+π —— 传 wP 会把远点摆到落点的反方向，
+           也就是摆到黑洞右边（那里只剩一百多像素），于是每一条都被判成「收不进」，
+           判据立刻变成一堵乱墙。这个符号错我踩过一次，实测 k 一律 0.10。 */
+        var wP = Math.atan2(pry, prx) + Math.PI;
+        for (var mi = 1; mi <= VGRID; mi++) {
+          var m = VHARD * VHARD * (mi / VGRID) * (mi / VGRID);
+          if (m < mMin) continue;
+          var aP = rP / (2 - m);
+          if (fitOrbit({ a: aP, e: 1 - m, w: wP, th: Math.PI }, pad).a >= aP - 1e-6) return true;
+        }
+        return false;
+      }
+
+      /* 把落点收进「有解区」：原样放行，或沿洞心方向缩到边界上。
+         ⚠ 为什么非要有这一步：**轨道不是点**。绘制时纵向压了 TILT=0.55，反过来，
+         屏幕上量到的纵向余量在轨道平面里只剩 0.55 倍 —— 于是「球心在屏内」离
+         「整条轨道收得进屏」还差得远。实测 1418×802：从洞心往左上 1120px 处松手，
+         同一落点下最收得住的合法轨道纵向要占 352px，而可用只有 265px ⇒ 收屏被迫
+         缩到 0.75 倍 ⇒ 球心被搬向洞心 280px。**这就是用户看到的跳变。**
+         与其松手才跳，不如拖的时候就顶住：拖到边界球不再跟手是**可预期**的
+         （而且边界本来就光滑 —— 它只跟方向有关），松手瞬移才像 bug。
+         二分 8 步，每步最多 VGRID 次 fitOrbit（常见情形只 1 次）。 */
+      function clampSolvable(x, y) {
+        var pad = orbitPad();
+        if (solvable(x, y, pad)) return { x: x, y: y };
+        var dx = x - HC.x, dy = y - HC.y, lo = 0, hi = 1;
+        for (var it = 0; it < 8; it++) {
+          var mid = (lo + hi) * 0.5;
+          if (solvable(HC.x + dx * mid, HC.y + dy * mid, pad)) lo = mid; else hi = mid;
+        }
+        /* 连最小半径都无解（极窄视口）：不硬收 —— 交回求解器的退路，
+           那一点点的收缩比「球吸在洞心」好看得多。 */
+        if (lo < 0.10) return { x: x, y: y };
+        return { x: HC.x + dx * lo, y: HC.y + dy * lo };
       }
 
       function elems(o) {
@@ -1557,6 +1609,7 @@
              ④ 闸必须架在 fitOrbit **之后**：收屏是等比缩 a，近点跟着缩。
                 判据读收屏前的 rp，就会放行一条缩完扎进盘面的轨道（见 solveVT）。 */
         var rpFloor = RH * DISK_IN_F;
+        var fpad = orbitPad();
         /* 把一个候选切向速度解成轨道，并**立刻收进屏幕**再报告近点。
            ⚠ 这是本题最贵的一课：判据必须读「收屏之后」的 rp。
            fitOrbit 是按屏幕余量把 a 等比缩小的（o.a *= k），而 rp = a(1−e)
@@ -1565,61 +1618,86 @@
            只比 37px 的事件视界高 1.1 倍。截图里只是一颗「偶尔贴得有点近」的
            球，看不出来；只有把 k 算出来才对得上账。
            fits 记录「这条轨道收屏时有没有被缩」：没缩 ⇒ 松手点没被搬动。 */
-        function solveVT(vta) {
-          var vrn = sgnR * Math.sqrt(Math.max(0, V * V - vta * vta));
+        function solveVT(sS, vta) {
+          var vrn = sgnR * Math.sqrt(Math.max(0, sS * sS - vta * vta));
           var wx = vrn * erx + vta * sgn * etx;
           var wy = vrn * ery + vta * sgn * ety;
           var a2 = 1 / (2 / r - (wx * wx + wy * wy) / GM);
-          if (!(a2 > 0)) return { vx: wx, vy: wy, h: 0, a: 0, e: 1, w: 0, th: 0, rp: 0, rpf: 0, fits: false };
+          if (!(a2 > 0)) return { vx: wx, vy: wy, vr: vrn, vt: vta * sgn, h: 0, a: 0, e: 1, w: 0, th: 0, rp: 0, rpf: 0, fits: false, kk: 0 };
           var h2 = rx * wy - ry * wx;
           var e2 = Math.sqrt(Math.max(0, 1 - h2 * h2 / (GM * a2)));
           var exx2 = wy * h2 / GM - erx, eyy2 = -wx * h2 / GM - ery;
           var w2 = Math.atan2(eyy2, exx2);
-          var nu2 = Math.atan2(erx * eyy2 - ery * exx2, erx * exx2 + ery * eyy2);
-          if (e2 < 0.05) { w2 = 0; nu2 = Math.atan2(-ery, erx); }   /* 近圆时方向不可辨，与绘制端一致 */
-          var f2 = fitOrbit({ a: a2, e: e2 < 0.05 ? 0.05 : e2, w: w2, th: nu2 });
+          var nu2 = Math.atan2(ery * exx2 - erx * eyy2, erx * exx2 + ery * eyy2);
+          if (e2 < 0.05) { w2 = 0; nu2 = Math.atan2(ery, erx); }   /* 近圆时方向不可辨，与绘制端一致 */
+          var f2 = fitOrbit({ a: a2, e: e2 < 0.05 ? 0.05 : e2, w: w2, th: nu2 }, fpad);
           return {
-            vx: wx, vy: wy, h: h2, a: a2, e: e2, w: w2, th: nu2,
-            rp: a2 * (1 - e2), rpf: f2.rp, fits: f2.a >= a2 - 1e-6
+            vx: wx, vy: wy, vr: vrn, vt: vta * sgn, h: h2, a: a2, e: e2, w: w2, th: nu2,
+            rp: a2 * (1 - e2), rpf: f2.rp, fits: f2.a >= a2 - 1e-6, kk: f2.a / a2
           };
         }
-        /* 两级判据。随 vta 增大：e 单调降 → 近点升、轨道变瘦更贴屏，两个条件
-           都单调变好，所以二分成立。
-           okStrict 先要求 fits —— 收屏不缩 ⇒ 松手点不动 ⇒ 不跳。
-           够不到才退到 okLoose（允许缩一点），最后才退到「全切向取最好」。 */
-        function okStrict(vta) {
-          var q = solveVT(vta);
-          return q.a > 0 && q.rpf >= rpFloor - 0.5 && q.e <= E_MAX + 1e-9 && q.fits;
-        }
-        function okLoose(vta) {
-          var q = solveVT(vta);
-          return q.a > 0 && q.rpf >= rpFloor - 0.5 && q.e <= E_MAX + 1e-9;
-        }
-        function bisectV(pred) {
-          if (pred(vta0)) return vta0;      /* 用户甩出来的本就合法，原样保留 */
-          if (!pred(vTop)) return -1;
-          var loV = vta0, hi2 = vTop;
-          for (var it = 0; it < 32; it++) {
-            var midV = (loV + hi2) / 2;
-            if (pred(midV)) hi2 = midV; else loV = midV;
-          }
-          return hi2;                        /* 单调 → 「刚好达标」的最小 vta */
-        }
+        /* 候选空间是**两维**的：总速 s 与切向分量 vta（径向由 vr = sgnR·√(s²−vta²) 让位）。
+           ⚠ 三条判据互相顶，所以既不能二分、也不是一维：
+             · e = 1−m ≤ E_MAX  → s 不能太小（m = s²/(GM/r)）
+             · rp ≥ rpFloor     → s 不能太小
+             · fits             → 松手点在洞左边时，**rp 也不能太大**：洞右边只剩
+               一百多像素，而纯切向那一族里 ra ≡ r 是常数、rp = r·m/(2−m) 随 s 涨
+           于是可行集被夹成 s 的一段区间，取其中**离用户甩速最近**的那个。
+           指纹：老代码每行的 e 都恰好钉死在 0.82=E_MAX 上（二分的必然落点）。
+           只扫 vta、把 s 钉在用户甩速上是不够的 —— 拟合需要的「慢而全切向」那一族
+           在那个超平面里根本不存在，实测仍有 0.71 倍的收缩。
+           实测（1418×802、60 次试投）：老代码 46 次残差 > 12px、最大 699px。
+           ⚠ 顺序很重要：**先试用户甩出来的那份速度**，合法就原样用 ——
+           常规拖拽的手感一个字节都不变，扫描只在非改不可时才启动。 */
         var vta0 = Math.abs(vt0), cur;
-        var vPick = bisectV(okStrict);
-        if (vPick < 0) vPick = bisectV(okLoose);
-        /* 两档都够不到：松手点离洞心太近，同一半径下近点的上界就是 ≈0.437r
-           —— 取全切向，那是能拿到的最好值（注释③说的情形）。 */
-        cur = solveVT(vPick >= 0 ? vPick : vTop);
+        var vr0 = sgnR * Math.sqrt(Math.max(0, V * V - vta0 * vta0));
+        function okQ(q) {
+          return q.a > 0 && q.e <= E_MAX + 1e-9 && q.rpf >= rpFloor - 0.5 && q.fits;
+        }
+        /* 「离用户甩的多远」在 (r̂, t̂) 这一组基下直接比两个分量即可 ——
+           速度空间里的欧氏距离，比拿 vta 单独比更贴近手感（径向也在里面）。 */
+        function dev2(q) {
+          var d1 = q.vr - vr0, d2 = q.vt - vta0 * sgn;
+          return d1 * d1 + d2 * d2;
+        }
+        cur = solveVT(V, vta0);
+        if (!okQ(cur)) {
+          var NM = VGRID, NV = 12, bestQ = null, bestD = Infinity, looseQ = null, bestK = -1;
+          for (var mi = 1; mi <= NM; mi++) {
+            var sS = vTop * mi / NM;
+            for (var ni = 0; ni <= NV; ni++) {
+              var qC = solveVT(sS, sS * ni / NV);
+              if (!(qC.a > 0)) continue;
+              var okE = qC.e <= E_MAX + 1e-9, okR = qC.rpf >= rpFloor - 0.5;
+              if (okE && okR && qC.fits) {
+                var dv = dev2(qC);
+                if (dv < bestD) { bestD = dv; bestQ = qC; }
+              } else if (okE && okR && qC.kk > bestK) {
+                /* 一条都收不住的退路：挑「收屏时缩得最少」的 —— 缩得越少，松手点
+                   被搬得越近。这一支通常落在全切向 + 顶速（近点 0.82r，见 VHARD）。 */
+                bestK = qC.kk; looseQ = qC;
+              }
+            }
+          }
+          /* 全切向 + 顶速兜底：ra ≡ r 是同一松手半径下能拿到的最小远点。
+             （扫描里 24 档速度的最后一行就是它，这里只是防「一行都没进循环」。） */
+          cur = bestQ || looseQ || solveVT(vTop, vTop);
+        }
         var hh = cur.h;
         var exx = cur.vy * hh / GM - erx;
         var eyy = -cur.vx * hh / GM - ery;
         var e = cur.e;
         if (e < 0.05) { e = 0.05; exx = 1; eyy = 0; }
         var w = Math.atan2(eyy, exx);
-        var nu = Math.atan2(erx * eyy - ery * exx, erx * exx + ery * eyy);
+        /* ⚠ 真近点角对 ê **逆时针**量：ν = atan2(ê × r̂, ê·r̂)。
+           叉积写成 r̂ × ê（两个分量换了个位置）就得到 −ν，而绘制端 posOf 用的是
+           an = w + th —— 于是新轨道不穿过松手点，而是穿过它关于近点线的**镜像点**。
+           残差不小：实测方位角偏 −2ν，最大 51°、横向跳几百像素。
+           两支（这里与 solveVT 里那一份）必须同时改，否则「收屏判定用的形状」
+           与「真正落地的形状」会差一个 ν 的符号。 */
+        var nu = Math.atan2(ery * exx - erx * eyy, erx * exx + ery * eyy);
         p.moved = 1;                  /* 记下「这颗是用户改过轨道的」，resize 时别覆盖 */
-        p.orbit = fitOrbit({ a: cur.a, e: e, w: w, th: nu });
+        p.orbit = fitOrbit({ a: cur.a, e: e, w: w, th: nu }, fpad);
       }
 
       /* ---------- 星球 ---------- */
@@ -1873,6 +1951,10 @@
             if (x < xl) x = xl; else if (x > xr) x = xr;
             if (y < yt) y = yt; else if (y > yb) y = yb;
           }
+          /* 上面那一轮只管「球心在屏内」。还得过「有解区」这一关 ——
+             见 clampSolvable：落在无解区的落点，松手时只能被等比缩向洞心。 */
+          var cs = clampSolvable(x, y);
+          x = cs.x; y = cs.y;
           c.dx = x; c.dy = y;
           var rxx = x - HC.x, ryy = y - HC.y;
           c.dr = Math.sqrt(rxx * rxx + ryy * ryy);
