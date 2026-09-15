@@ -80,22 +80,16 @@
       pointer-events: none;
     }
 
-    /* 星场 z-index:0；黑洞装饰垫在内容之下（z-index:1）；正文各段抬到 z-index:2
-       （.top 自带 z-index:20）；可交互的星球层浮在**所有文字**之上（z-index:5），
-       唯一压在它之上的是练习存档（#archive，见该条）。
-       ⚠ #main 自己**不能**带 z-index：它一旦建了层叠上下文，#archive 的 z-index 再高
-       也只在它内部排序、整体仍被压在星球层之下 —— 而练习存档偏偏要求反过来。
-       所以改成「#main 透明、逐段抬」，把层级比较还给根上下文。 */
-    #main {
-      position: relative;
-      z-index: auto;
-    }
-
-    /* 正文逐段抬到黑洞之上 —— 等价于原来 #main{z-index:2} 的整体效果。
-       #main 只有 hero-outer / #works / #archive / #about 四个子元素，且没有任何绝对
-       定位元素以它们为包含块（.aura 的包含块是本来就 relative 的 .hero-outer），
-       所以补 position:relative 不动布局。 */
-    #main > *,
+    /* 星场在 z-index:0；黑洞装饰垫在内容之下（z-index:1）；内容抬到 z-index:2
+       （.top 自带 z-index:20），可交互的星球层浮在**所有文字之上**（z-index:5）。
+       ⚠ 「球盖住文字」是刻意的：它靠遮挡表达「我能拖」。
+       唯一的让步在练习存档 —— 但**不靠层级**。曾经把存档抬到球上面（z-index:6
+       ＋一层与页面同色的不透明底），结果是一整块死黑压在星球上：底色虽然看不出
+       边界，却把这区域里的星点、黑洞边缘和掠过的球全吃掉，像贴了张黑纸。
+       现在改成让**球自己**在压到存档时变淡并让开指针（见 JS 的 placePlanet /
+       archiveYield），球仍在存档之上 —— 所以这里用最平的一版，不再需要任何
+       「#main 不能建层叠上下文」的特殊结构。 */
+    #main,
     .foot {
       position: relative;
       z-index: 2;
@@ -453,17 +447,13 @@
 
     /* ---------- 练习存档 ---------- */
 
-    /* ⚠ 整页唯一一块**压在星球之上**的内容（z-index 6 > 星球层 5）。
-       要求是「除练习存档之外，球都实心盖住文字」—— 球扫到这里要沉到它后面，
-       这 10 条链接照常可读可点（球也不会再吃掉这里的点击）。
-       ⚠ 光抬 z-index 是没用的：文字只有笔画、没有底色，球照样从字缝里整颗透出来。
-       所以必须给一层**不透明底色**。取页面底色 --bg，与四周同色 ⇒ 看不出色块边界，
-       唯一的变化是「这块区域里的星点与球被吃掉」。
-       ⚠ 能生效的前提是 #main 不带 z-index（见文件上方层级注释）。 */
-    #archive {
-      z-index: 6;
-      background: var(--bg);
-    }
+    /* ⚠ 这里**故意不加 z-index、也不加底色**。
+       试过「把存档抬到球之上」的版本（z-index 6 ＋一层与页面同色的不透明底）：
+       读起来是「一片死黑压在星球上」，那一块的星点、黑洞边缘和掠过的球全被吃掉，
+       反而不像一块能点的地方。
+       现在的做法：存档老实待在内容层，**球依旧在它之上**；球压过来时球自己变淡
+       并让开指针（见 JS 的 placePlanet / archiveYield）—— 既看得出球掠过，
+       10 条链接也照常可点。 */
 
     .log {
       list-style: none;
@@ -1079,6 +1069,7 @@
        背景尘埃，会绕黑洞发生引力透镜偏折（星点被径向推开并增亮）。
        黑洞垫在内容之下（z-index:1）——它是景；星球浮在内容之上（z-index:5）
        并且可交互。所以恒星系整片压不到正文的可读性，只有星球会从字上掠过。
+       唯一的让步是练习存档：球压到那里会自己变淡并让开指针（见 placePlanet）。
 
        星球：
        - 平时沿各自的开普勒椭圆绕黑洞运行。焦点在黑洞中心，不是椭圆中心：
@@ -1137,6 +1128,13 @@
       var NARROW = false;
       var TOP_BAR = 96;             /* 星球不许钻进粘性顶栏 */
       var SYS_OP = 1;               /* 整个恒星系的透明度系数（窄屏压低） */
+      /* 星球半径（CSS clamp 的实测值）：orbitFrame 每次 resize 量一次。
+         placePlanet 每帧要用它判断「球有没有压到练习存档」—— 每帧去读 offsetWidth
+         会多一次布局结算，不值当。 */
+      var PH = 0;
+      /* 练习存档：整页唯一会让球让步的区域（见 archiveYield / syncArchive）。 */
+      var archEl = document.getElementById('archive');
+      var archRect = null, archKey = '';
 
       /* 黑洞中心必须落在视口里 —— 事件视界和光子环看不见的话，「黑洞」就只是
          一圈从屏幕外漏进来的弧。桌面靠右（右半屏是它的舞台），窄屏挪到右上角。 */
@@ -1174,8 +1172,8 @@
          「星球只能在黑洞旁一小圈里打转」的成因：黑圆心在 0.855W、右边只剩 118px，
          近点被钉死；而左边一到 789px（栏右缘）就封顶 —— a 只能长到 150–210px，
          比黑洞自己的吸积盘半径（RH≈270）还小。放开 x0 之后 a 能到 300–630px，
-         整页扫过。文字可读性改由「球实心遮挡 ＋ 练习存档压在球上」负责
-         （见 CSS 的 #archive 与 placePlanet）。
+         整页扫过。文字可读性改由「球实心遮挡」负责；唯一的让步是练习存档，
+         由 placePlanet 让球在那里变淡并让开指针（见 JS 的 archiveYield）。
          边界要按星球半径内缩，否则星球中心还在区内、半个身子已出屏。 */
       function orbitPad() {
         var ph = planetHalf();
@@ -1400,7 +1398,8 @@
       var ORB = { rpMin: 0, rpMax: 0, raMin: 0, raMax: 0 };
       function orbitFrame() {
         var pad = orbitPad();
-        ORB.rpMin = Math.max(RH * 0.42, planetHalf() * 0.6);
+        PH = planetHalf();          /* placePlanet 每帧要用，量一次存着 */
+        ORB.rpMin = Math.max(RH * 0.42, PH * 0.6);
         ORB.raMax = Math.max(ORB.rpMin * 1.8, HC.x - pad.x0);   /* 远点朝左，用满到 pad 左边 */
         ORB.raMin = Math.max(ORB.rpMin * 1.3, ORB.raMax * 0.46);
         /* 近点朝右：能伸多远由「右侧还剩多少」定；同时别超过远点的 0.36 ——
@@ -1536,6 +1535,35 @@
         return { x: HC.x + r * Math.cos(an), y: HC.y + r * Math.sin(an) * TILT, r: r };
       }
 
+      /* ---------- 练习存档：球在这里让步 ----------
+         球的位置是**视口坐标**（#cosmos 是 fixed、球用 transform 摆），所以这里也取
+         视口坐标的 getBoundingClientRect()，两边直接比，不做任何换算。
+         ⚠ 缓存必须跟着 scrollY 失效：存档随页面滚动。只按 resize 失效的话，往下滚
+         一段后缓存停在旧位置，球会对着空气变淡。 */
+      function syncArchive() {
+        if (!archEl) { archRect = null; return; }
+        var sy = window.pageYOffset || document.documentElement.scrollTop || 0;
+        var k = sy + '|' + W + 'x' + H;
+        if (archRect && k === archKey) return;
+        archKey = k;
+        var r = archEl.getBoundingClientRect();
+        archRect = { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom };
+      }
+
+      /* 球压到存档上的程度：0 = 完全没碰到，1 = 球心已经落进存档。
+         球当圆看，取「圆心到矩形的距离」（圆心落在矩形内时为 0），再按一个球半径
+         归一化。做成斜坡而不是开关，是为了让透明度**渐变** —— 硬开关的话，球擦着
+         存档边缘掠过时透明度会一跳一跳。 */
+      function archiveYield(cx, cy) {
+        if (!archRect) return 0;
+        var dx = cx < archRect.x0 ? archRect.x0 - cx : (cx > archRect.x1 ? cx - archRect.x1 : 0);
+        var dy = cy < archRect.y0 ? archRect.y0 - cy : (cy > archRect.y1 ? cy - archRect.y1 : 0);
+        var d = Math.sqrt(dx * dx + dy * dy);
+        var t = (PH - d) / (PH || 1);
+        return t <= 0 ? 0 : (t >= 1 ? 1 : t);
+      }
+
+
       function placePlanet(p) {
         var el = p.orb;
         if (!el) return;
@@ -1548,20 +1576,30 @@
         /* 星球**实心盖住所有文字**（2026-09-16 用户的要求）。
            上一版这里是「进正文栏渐隐到 0.29 ＋ 让开指针」，代价是球看起来像一团背景
            光斑、不像是能抓的东西。现在反过来：一律实心，靠**遮挡**表达「可以拖我」。
-           唯一例外是练习存档（#archive 用 z-index 6 压在星球层 5 之上，见 CSS）——
-           球扫到那里会沉到它后面，那块的链接照常可点。
            ⚠ 代价（已与用户确认）：球压住链接/按钮的那几秒，那一下点击归球。球一直在
            走，压住的窗口只有几秒。
-           ⚠ 指针一律保持 auto、**不再随位置改写**：此前深进栏内会写 pointer-events:none，
-           而拖拽途中改它会打断 setPointerCapture 的那次拖拽。
-           ⚠ 透明度只留「近亮远暗」（下面 op 里的 z 项）—— 别让同一个变量同时表两个
-           意思，否则「近大远小」那条验收断言会假失败。 */
+           〖同日二次修正〗唯一让步的是**练习存档**，而且不靠层级 —— 把存档抬到球上面
+           （＋一层不透明底）读起来是「一片死黑压在星球上」。改成球在那一小块自己让步：
+           变淡 ＋ 让开指针，球仍在存档之上，链接照常可点。
+           ⚠ 拖拽中不让步：拖到一半把 pointer-events 写成 none 会打断 setPointerCapture
+           的那次拖拽；而且球在手上时也不需要让路。
+           ⚠ 窄屏不让步：#cosmos 在窄屏整层沉到内容之下（z-index:1），球已在文字后面。
+           ⚠ 透明度是两个因子相乘（近亮远暗 × 存档让步）—— 别跟别的意思共用变量，
+           否则「近大远小」那条验收断言会假失败。 */
+        syncArchive();
+        var yl = (p.dragging || NARROW) ? 0 : archiveYield(q.x, q.y);
+        op *= 1 - 0.60 * yl;
         /* translate(-50%,-50%) 收在最后：CSS 变换从右往左作用，
            先居中再缩放再平移，结果就是「球心永远落在 (q.x,q.y)」。
            少了这一句，轨道算出来的点是盒子左上角，整条轨道会整体偏右下半个球。 */
         el.style.transform = 'translate3d(' + q.x.toFixed(1) + 'px,' + q.y.toFixed(1) +
           'px,0) scale(' + sc.toFixed(4) + ') translate(-50%,-50%)';
         el.style.opacity = (op * SYS_OP).toFixed(3);
+        /* 让开指针：透明度那边是渐变，这边是开关（指针没有「半让」这种状态）。
+           yl > 0 ⟺ 球面已经碰到存档矩形 —— 正好是「会挡住可点内容」的那一刻。
+           ⚠ 拖拽中一律不写：同上的 setPointerCapture 原因。 */
+        var pe = yl > 0 ? 'none' : '';
+        if (!p.dragging && el.style.pointerEvents !== pe) el.style.pointerEvents = pe;
       }
 
       /* 用松手时的位置 + 速度解算新的开普勒轨道要素。
