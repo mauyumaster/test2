@@ -80,9 +80,22 @@
       pointer-events: none;
     }
 
-    /* 星场在 z-index:0；黑洞装饰垫在内容之下（z-index:1）；内容抬到 z-index:2
-       （.top 自带 z-index:20），可交互的星球层浮在内容之上（z-index:5） */
-    #main,
+    /* 星场 z-index:0；黑洞装饰垫在内容之下（z-index:1）；正文各段抬到 z-index:2
+       （.top 自带 z-index:20）；可交互的星球层浮在**所有文字**之上（z-index:5），
+       唯一压在它之上的是练习存档（#archive，见该条）。
+       ⚠ #main 自己**不能**带 z-index：它一旦建了层叠上下文，#archive 的 z-index 再高
+       也只在它内部排序、整体仍被压在星球层之下 —— 而练习存档偏偏要求反过来。
+       所以改成「#main 透明、逐段抬」，把层级比较还给根上下文。 */
+    #main {
+      position: relative;
+      z-index: auto;
+    }
+
+    /* 正文逐段抬到黑洞之上 —— 等价于原来 #main{z-index:2} 的整体效果。
+       #main 只有 hero-outer / #works / #archive / #about 四个子元素，且没有任何绝对
+       定位元素以它们为包含块（.aura 的包含块是本来就 relative 的 .hero-outer），
+       所以补 position:relative 不动布局。 */
+    #main > *,
     .foot {
       position: relative;
       z-index: 2;
@@ -439,6 +452,18 @@
     }
 
     /* ---------- 练习存档 ---------- */
+
+    /* ⚠ 整页唯一一块**压在星球之上**的内容（z-index 6 > 星球层 5）。
+       要求是「除练习存档之外，球都实心盖住文字」—— 球扫到这里要沉到它后面，
+       这 10 条链接照常可读可点（球也不会再吃掉这里的点击）。
+       ⚠ 光抬 z-index 是没用的：文字只有笔画、没有底色，球照样从字缝里整颗透出来。
+       所以必须给一层**不透明底色**。取页面底色 --bg，与四周同色 ⇒ 看不出色块边界，
+       唯一的变化是「这块区域里的星点与球被吃掉」。
+       ⚠ 能生效的前提是 #main 不带 z-index（见文件上方层级注释）。 */
+    #archive {
+      z-index: 6;
+      background: var(--bg);
+    }
 
     .log {
       list-style: none;
@@ -1129,20 +1154,6 @@
         HC.y = Math.round(H * (NARROW ? 0.28 : 0.56));
         TOP_BAR = NARROW ? 88 : 96;
         SYS_OP = NARROW ? 0.52 : 1;
-        measureLane();
-      }
-
-      /* 正文栏右边缘：由 .wrap 实测，不写死像素 —— 视口一变，
-         .wrap 的居中位置就变，写死的数字立刻会跟版面错位。 */
-      var LANE_R = 0;
-      function measureLane() {
-        LANE_R = W * 0.42;
-        var el = document.querySelector('.wrap');
-        if (!el) return;
-        var r = el.getBoundingClientRect();
-        var pl = parseFloat(window.getComputedStyle(el).paddingLeft) || 0;
-        var v = r.left + pl + 640;      /* 640 = CSS 里的 --lane */
-        if (v > 0) LANE_R = v;
       }
 
       /* 星球的实际半径。**实测 DOM，不再手抄 CSS 的 clamp** ——
@@ -1163,7 +1174,8 @@
          「星球只能在黑洞旁一小圈里打转」的成因：黑圆心在 0.855W、右边只剩 118px，
          近点被钉死；而左边一到 789px（栏右缘）就封顶 —— a 只能长到 150–210px，
          比黑洞自己的吸积盘半径（RH≈270）还小。放开 x0 之后 a 能到 300–630px，
-         整页扫过。正文可读性改由 placePlanet 的「进栏渐隐 ＋ 让开指针」负责（见那里）。
+         整页扫过。文字可读性改由「球实心遮挡 ＋ 练习存档压在球上」负责
+         （见 CSS 的 #archive 与 placePlanet）。
          边界要按星球半径内缩，否则星球中心还在区内、半个身子已出屏。 */
       function orbitPad() {
         var ph = planetHalf();
@@ -1533,32 +1545,23 @@
         if (z < 0) z = 0; else if (z > 1) z = 1;
         var sc = 1.07 - 0.14 * z;      /* 近大远小 */
         var op = 0.94 - 0.10 * z;      /* 近亮远暗 */
-        /* 正文栏内的让位。轨道放开到整页之后，远点在正文栏深处，而开普勒让星球在
-           远点附近**最慢** —— 也就是它会在文字上慢慢蹭。
-           ⚠ 靠 z-index 是解决不了的：文字没有底色、只有笔画，星球垫到文字下面照样
-           「透过字缝整颗看得见」，反而更乱。能用的只有「变淡」。
-           ⚠ 而且**只动透明度、不动尺寸**：尺寸已经有一个含义（近大远小），再叠一层
-           「在不在正文栏上」会让同一个变量有两个意思，验收脚本也没法把两者分开量
-           （实测过：混在一起时「近大远小」那条断言会假失败）。
-             lt 从「球心越过栏右缘」起算，走到栏内 0.72×栏宽 处到顶。曲线取 √lt
-             而不是 lt：线性太慢 —— lt=0.4（球心已在正文栏内四成）时还有 0.71 不透明度，
-             字被压得发灰（实测 0.65；而字面的对比度要撑到 0.5 以下才够）。
-             √lt 让「刚压到字」掉到 0.73、栏内四成 0.49、最深处 0.29 —— 一颗远景暗球。
-           ⚠ 指针也必须让开：.planet 的命中区有 104–164px，盖在正文上时会把
-           「点正文链接」整个吃掉。深进正文栏的星球一律 pointer-events:none
-           （拖拽途中除外：那时指针已 setPointerCapture，中途改会打断这次拖拽）。 */
-        var lt = NARROW ? 0 : (LANE_R - q.x) / Math.max(1, LANE_R * 0.72);
-        if (lt < 0) lt = 0; else if (lt > 1) lt = 1;
-        op *= 1 - 0.66 * Math.sqrt(lt);
+        /* 星球**实心盖住所有文字**（2026-09-16 用户的要求）。
+           上一版这里是「进正文栏渐隐到 0.29 ＋ 让开指针」，代价是球看起来像一团背景
+           光斑、不像是能抓的东西。现在反过来：一律实心，靠**遮挡**表达「可以拖我」。
+           唯一例外是练习存档（#archive 用 z-index 6 压在星球层 5 之上，见 CSS）——
+           球扫到那里会沉到它后面，那块的链接照常可点。
+           ⚠ 代价（已与用户确认）：球压住链接/按钮的那几秒，那一下点击归球。球一直在
+           走，压住的窗口只有几秒。
+           ⚠ 指针一律保持 auto、**不再随位置改写**：此前深进栏内会写 pointer-events:none，
+           而拖拽途中改它会打断 setPointerCapture 的那次拖拽。
+           ⚠ 透明度只留「近亮远暗」（下面 op 里的 z 项）—— 别让同一个变量同时表两个
+           意思，否则「近大远小」那条验收断言会假失败。 */
         /* translate(-50%,-50%) 收在最后：CSS 变换从右往左作用，
            先居中再缩放再平移，结果就是「球心永远落在 (q.x,q.y)」。
            少了这一句，轨道算出来的点是盒子左上角，整条轨道会整体偏右下半个球。 */
         el.style.transform = 'translate3d(' + q.x.toFixed(1) + 'px,' + q.y.toFixed(1) +
           'px,0) scale(' + sc.toFixed(4) + ') translate(-50%,-50%)';
         el.style.opacity = (op * SYS_OP).toFixed(3);
-        /* 只在真的变了才写：这一句每帧都跑，同值重复赋值会让样式表反复失效。 */
-        var pe = lt > 0.10 ? 'none' : '';
-        if (!p.dragging && el.style.pointerEvents !== pe) el.style.pointerEvents = pe;
       }
 
       /* 用松手时的位置 + 速度解算新的开普勒轨道要素。
