@@ -370,81 +370,20 @@
       color: var(--fg-3);
     }
 
-    /* ---------- 作品 ---------- */
+    /* ---------- 作品：程序化星球 ---------- */
 
     .works {
       display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      gap: 18px;
+      grid-template-columns: 1fr;
+      gap: 30px 24px;
     }
 
-    .card {
-      grid-column: span 12;
-      display: flex;
-      flex-direction: column;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      overflow: hidden;
-      text-decoration: none;
-      color: inherit;
-      transition: transform .24s var(--ease), border-color .24s var(--ease),
-        box-shadow .24s var(--ease);
-    }
-
-    .card:hover {
-      transform: translateY(-3px);
-      border-color: var(--line-2);
-      box-shadow: 0 20px 44px -22px rgba(0, 0, 0, .8),
-        0 0 0 1px rgba(217, 164, 65, .07) inset;
-    }
-
-    /* 非对称栏宽：7/5 与 5/7 交替，配两种画幅比例。窄屏一律单栏。 */
-    @media (min-width: 900px) {
-      .card.w7 { grid-column: span 7; }
-      .card.w5 { grid-column: span 5; }
-      .card.w5 .thumb { aspect-ratio: 4 / 3; }
-    }
-
-    .thumb {
-      position: relative;
-      aspect-ratio: 16 / 9;
-      overflow: hidden;
-      background: #0c0e13;
-    }
-
-    .thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      transition: transform .55s var(--ease);
-    }
-
-    .card:hover .thumb img { transform: scale(1.035); }
-
-    .thumb::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background: linear-gradient(180deg, transparent 58%, var(--card));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
-    }
-
-    .meta {
-      display: flex;
-      flex-direction: column;
-      gap: 9px;
-      flex: 1;
-      padding: 20px 22px 22px;
-    }
-
-    .meta-top {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 14px;
+    @media (min-width: 760px) {
+      .works { grid-template-columns: repeat(3, 1fr); gap: 46px 26px; }
+      /* 给悬停卡留的净空：「作品」标题与星球之间留一条星空带，卡片浮起来正好落在里面。
+         不留的话卡片会钻进粘性顶栏、或反过来压住下一节的标题（都实测过）。
+         窄屏没有 hover，不需要这段空间。 */
+      .works { margin-top: 230px; }
     }
 
     h3 {
@@ -456,20 +395,145 @@
 
     .arw {
       color: var(--fg-3);
-      font-size: 14px;
+      font-size: 13px;
       transition: color .22s var(--ease), transform .22s var(--ease);
     }
 
-    .card:hover .arw {
+    .pcard:hover .arw {
       color: var(--accent);
       transform: translate(2px, -2px);
     }
 
-    .meta p {
-      margin: 0;
-      max-width: 50ch;
-      font-size: 14.5px;
-      line-height: 1.8;
+    /* 整块就是一个链接：星球、标题、悬停卡都在里面 */
+    .pcard {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      text-decoration: none;
+      color: inherit;
+      /* 竖滑交给浏览器滚动，横拖才归我们的物理 —— 少了这条，手机上拖动会被
+         浏览器当成滚动手势而中途取消（pointercancel），拖到一半就断。 */
+      touch-action: pan-y;
+      -webkit-user-drag: none;
+      cursor: grab;
+    }
+
+    .pcard.dragging { cursor: grabbing; }
+    .pcard.settling { transition: translate .46s var(--ease); }
+
+    /* canvas 里星球直径只占约 77%，四周的余量是留给大气发光的，
+       所以这里不要背景、不要边框 —— 轮廓全靠画出来的那圈光晕。
+       ⚠ .orb 的 transform / opacity 每帧由 JS 的轨道动画写入（见脚本里
+         「轨道：星球绕着自己那一格的圆心循环运动」一段）。别在这里加
+         transform / opacity / transition，会被每帧覆盖掉。
+         位移一律走 transform：它不触发重排，星球绕一年也不会挤动标题。 */
+    .orb {
+      position: relative;
+      display: block;
+      width: 100%;
+      max-width: 240px;
+      aspect-ratio: 1;
+    }
+
+    .orb canvas { display: block; width: 100%; height: 100%; }
+
+    .cap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+
+    .cap h3 { transition: color .22s var(--ease); }
+    .pcard:hover .cap h3 { color: var(--accent); }
+
+    .cap .tags { justify-content: center; margin: 0; padding: 0; }
+
+    /* 作品简介：桌面端由悬停卡承担；窄屏单栏、没有 hover，就常显出来 */
+    .cap .desc {
+      display: none;
+      margin: 2px 0 0;
+      max-width: 34ch;
+      font-size: 13.5px;
+      line-height: 1.75;
+      color: var(--fg-2);
+    }
+
+    @media (max-width: 759px) {
+      .cap .desc { display: block; }
+    }
+
+    /* ---------- 悬停／聚焦时浮出的预览信息卡 ---------- */
+
+    .info {
+      --enter: 10px;
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% - 30px);
+      z-index: 6;
+      width: min(300px, 76vw);
+      opacity: 0;
+      visibility: hidden;
+      transform: translate(-50%, var(--enter));
+      background: rgba(13, 15, 20, .95);
+      border: 1px solid var(--line-2);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 26px 60px -28px rgba(0, 0, 0, .95);
+      transition: opacity .26s var(--ease), transform .26s var(--ease), visibility .26s;
+    }
+
+    .pcard:hover .info,
+    .pcard:focus-visible .info {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, 0);
+    }
+
+    /* 上方放不下时翻到星球下方。加不加这个类由 JS 在悬停那一刻量出来决定。 */
+    .pcard.info-below .info {
+      bottom: auto;
+      top: calc(100% + 14px);
+      --enter: -10px;
+    }
+
+    .info .shot {
+      display: block;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      background: #0c0e13;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .info .shot img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .info .info-b {
+      display: block;
+      padding: 11px 14px 13px;
+      text-align: left;
+    }
+
+    .info .info-b b {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .info .info-b em {
+      display: block;
+      margin-top: 5px;
+      font-style: normal;
+      font-size: 12.5px;
+      line-height: 1.7;
       color: var(--fg-2);
     }
 
@@ -477,8 +541,8 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin: auto 0 0;
-      padding: 8px 0 0;
+      margin: 0;
+      padding: 0;
       list-style: none;
     }
 
@@ -754,22 +818,16 @@
     <section id="works" class="wrap sect">
       <header class="sect-h rv">
         <h2>作品</h2>
-        <p class="sect-n">三个打开就能动的东西 · 也可以拖一下</p>
+        <p class="sect-n">三颗在自己的轨道上循环的星球 · 悬停会停住，看清它是什么；也可以拖着甩出去</p>
         <span class="count">03 件</span>
       </header>
 
       <div class="works">
-        <a class="card w7 rv" href="midnight-store/" style="--d:0ms">
-          <div class="thumb">
-            <img src="midnight-store/preview.png" width="1258" height="702"
-              alt="凌晨两点零七分 · 便利店的店内视角，右侧是看得见的东西清单" decoding="async">
-          </div>
-          <div class="meta">
-            <div class="meta-top">
-              <h3>凌晨两点零七分 · 便利店</h3>
-              <span class="arw" aria-hidden="true">↗</span>
-            </div>
-            <p>
+        <a class="pcard rv" href="midnight-store/" data-planet="city" style="--d:0ms">
+          <div class="orb"><canvas aria-hidden="true"></canvas></div>
+          <div class="cap">
+            <h3>凌晨两点零七分 · 便利店 <span class="arw" aria-hidden="true">↗</span></h3>
+            <p class="desc">
               可以走进去的深夜便利店。WASD 走动，左键拖动转视角，点地面走过去，
               点光点或按 E 看一件东西 —— 每一件都会告诉你它离你有多远。手机横屏同样能走。
             </p>
@@ -779,19 +837,21 @@
               <li>手机适配</li>
             </ul>
           </div>
+          <div class="info">
+            <div class="shot"><img src="midnight-store/preview.png" width="1258" height="702"
+              alt="便利店店内视角的预览" loading="lazy" decoding="async"></div>
+            <div class="info-b">
+              <b>凌晨两点零七分 · 便利店</b>
+              <em>琥珀灯火下的一间店。每件东西都会告诉你它离你有多远。</em>
+            </div>
+          </div>
         </a>
 
-        <a class="card w5 rv" href="rainy-store/" style="--d:70ms">
-          <div class="thumb">
-            <img src="rainy-store/preview.png" width="1600" height="1000"
-              alt="雨夜里的便利店街角微缩模型，招牌、自动贩卖机和斑马线" loading="lazy" decoding="async">
-          </div>
-          <div class="meta">
-            <div class="meta-top">
-              <h3>雨夜便利店街角</h3>
-              <span class="arw" aria-hidden="true">↗</span>
-            </div>
-            <p>
+        <a class="pcard rv" href="rainy-store/" data-planet="rain" style="--d:70ms">
+          <div class="orb"><canvas aria-hidden="true"></canvas></div>
+          <div class="cap">
+            <h3>雨夜便利店街角 <span class="arw" aria-hidden="true">↗</span></h3>
+            <p class="desc">
               三渲二风格的微缩街角。做成一个摆件的样子，可以拖拽旋转、滚动缩放，
               从任意角度看这场下不完的雨。
             </p>
@@ -801,19 +861,21 @@
               <li>可旋转</li>
             </ul>
           </div>
+          <div class="info">
+            <div class="shot"><img src="rainy-store/preview.png" width="1600" height="1000"
+              alt="雨夜街角微缩模型的预览" loading="lazy" decoding="async"></div>
+            <div class="info-b">
+              <b>雨夜便利店街角</b>
+              <em>一个能拿在手里转的摆件，雨下不完。</em>
+            </div>
+          </div>
         </a>
 
-        <a class="card rv" href="web/indexdemo.html" style="--d:140ms">
-          <div class="thumb">
-            <img src="shots/galaxy.png" width="1418" height="802"
-              alt="星系数据浏览器的界面：左侧控制面板，右侧是由近万个光点组成的星系" loading="lazy" decoding="async">
-          </div>
-          <div class="meta">
-            <div class="meta-top">
-              <h3>星系数据浏览器</h3>
-              <span class="arw" aria-hidden="true">↗</span>
-            </div>
-            <p>
+        <a class="pcard rv" href="web/indexdemo.html" data-planet="galaxy" style="--d:140ms">
+          <div class="orb"><canvas aria-hidden="true"></canvas></div>
+          <div class="cap">
+            <h3>星系数据浏览器 <span class="arw" aria-hidden="true">↗</span></h3>
+            <p class="desc">
               把一份 t-SNE 降维后的星系数据画成能飞进去的星空：九千多个节点，
               左键旋转、滚轮缩放，粒子按属性着色。
             </p>
@@ -822,6 +884,14 @@
               <li>数据可视化</li>
               <li>9714 节点</li>
             </ul>
+          </div>
+          <div class="info">
+            <div class="shot"><img src="shots/galaxy.png" width="1418" height="802"
+              alt="星系数据浏览器界面的预览" loading="lazy" decoding="async"></div>
+            <div class="info-b">
+              <b>星系数据浏览器</b>
+              <em>九千多个节点组成的星系，可以飞进去。</em>
+            </div>
           </div>
         </a>
       </div>
@@ -1018,7 +1088,8 @@
        - 每帧速度乘 DISSIP 做耗散：轨道逐圈收缩，最后落回原位。另有 7s 兜底。
 
        性能与降级：DPR ≤ 2；标签页隐藏时停 rAF；prefers-reduced-motion 时
-       只画一帧静态星图（不漂移、不闪烁、无透镜），且完全禁用拖拽。 */
+       只画一帧静态星图（不漂移、不闪烁、无透镜），完全禁用拖拽，
+       星球也退回原位、不再沿轨道走。 */
 
     (function () {
       /* ⚠ canvas 拿不到时不要在函数开头 return —— 那会把下面「作品的拖拽」
@@ -1130,7 +1201,7 @@
 
       var cards = [];
       (function () {
-        var els = document.querySelectorAll('.works .card');
+        var els = document.querySelectorAll('.works .pcard');
         for (var i = 0; i < els.length; i++) cards.push(make(els[i]));
       })();
 
@@ -1292,11 +1363,411 @@
         }
       }
 
+      /* ---------- 作品星球：程序化生成 ----------
+
+         每颗星球 =（1）一张程序化生成的等距圆柱贴图 +（2）一张预计算的球面表。
+
+         贴图用 **3D 值噪声（fBm）在单位球面上采样**，所以左右接缝天然连续，
+         不必再做接缝融合 —— 这是 equirectangular 贴图最容易翻车的地方。
+
+         球面表把「屏幕像素 → 贴图行列 / 漫反射 / 边缘辉光 / 自发光权重」一次性算好；
+         之后每帧只是把贴图在 u 方向整体平移（绕屏幕上方的轴自转），
+         于是每帧每像素只剩「一次加、一次越界减、一次查表、两次乘加」。
+         这是它能跑得动的原因 —— 若每帧都重算 atan2/asin，三颗星球根本撑不住。
+
+         ⚠ TW 必须是 2 的幂：取模用的是 & (TW-1) 的思路，越界用减法。
+         ⚠ 贴图的 alpha 通道被征用来存「自发光遮罩」：盘内 alpha 由几何决定，
+           贴图自己的 alpha 用不到，正好空出来放灯火。 */
+
+      var TW = 256, TH = 128, OCT = 4;
+      var P_DPR = 1.25;
+      var P_STEP = 0.066;        /* 星球重绘间隔 ≈15fps：自转很慢，15fps 看不出来 */
+
+      var PLANETS = {
+        city: {                                  /* 凌晨便利店：暗面 ＋ 琥珀灯火 */
+          base: [8, 10, 17], land: [40, 44, 54], lit: [1.00, 0.66, 0.28],
+          atmo: [0.62, 0.40, 0.17], atmoA: 0.90, mode: 'lights', spin: 0.030,
+          orbit: { rx: 0.092, ry: 0.042, period: 17, phase: 0.00 }
+        },
+        rain: {                                  /* 雨夜街角：青蓝海洋 ＋ 翻卷云层 */
+          base: [10, 28, 50], land: [46, 94, 130], lit: [0, 0, 0],
+          atmo: [0.26, 0.56, 0.86], atmoA: 1.00, mode: 'clouds', spin: 0.045,
+          orbit: { rx: 0.070, ry: 0.050, period: 13, phase: 2.10 }
+        },
+        galaxy: {                                /* 星系浏览器：金紫条纹的巨行星 */
+          base: [44, 24, 60], land: [140, 92, 150], lit: [0, 0, 0],
+          atmo: [0.70, 0.46, 0.86], atmoA: 0.95, mode: 'bands', spin: 0.055,
+          orbit: { rx: 0.098, ry: 0.036, period: 21, phase: 4.20 }
+        }
+      };
+
+      /* ---------- 轨道：星球绕着自己那一格的圆心循环运动 ----------
+
+         星球不该钉死在一个点上 —— 它在动，这一节才像是活的。但作品标题必须能读，
+         所以**只有星球在动，caption 一律不动**；轨道半径也刻意压得很小
+         （横向十几个像素），是「呼吸」而不是「飘走」。
+
+         为什么一定是圈：x 上叠了一个二次谐波（θ 与 2θ 在 θ+2π 时同时回到起点），
+         路径的周期仍然是 2π，所以必然绕回原处，不会像 Lissajous 那样越走越偏。
+
+         ── 可拓展性 ──
+         加一颗新星球不必改这里的任何代码：
+           ① 在 PLANETS 里补一条（base/land/atmo/mode/spin，orbit 可以完全不写）；
+           ② 在 HTML 里加一个 <a class="pcard" data-planet="新名字">…</a>。
+         没写 orbit 的星球，参数由「名字的哈希」推导：rx/ry/period 在基准值附近
+         抖动，相位按它在页面里的顺序错开 —— 自动得到一条跟别人不同步的轨道。
+         想手调就在那条配置里写 orbit（上面三颗就是范例），缺的字段照样自动补。
+
+         rx / ry 的单位是**星球自身宽度的比例**，不是死像素：窄屏上星球变小，
+         轨道跟着等比缩小，不必为断点各配一套参数。
+
+         三个状态会让星球「定住」：
+           · 指针悬停 / 键盘聚焦 —— 此刻悬停卡正在定位，星球再走卡就指着一块空气；
+           · 直接拖拽中 —— 拖的时候它得像实体一样跟手，不能自己在里面飘；
+           · 系统要求减弱动态效果 —— 全部退回原位（见 boot()）。 */
+      var ORBIT = {
+        rx: 0.085,       /* 水平半轴（星球宽度的比例）。横向为主：竖直方向要留给悬停卡 */
+        ry: 0.042,       /* 垂直半轴 */
+        period: 16,      /* 绕一圈几秒 */
+        wob: 0.16,       /* 二次谐波幅度：纯椭圆看着像平移，有一点回落才像在绕轨 */
+        scale: 0.055     /* 远近缩放 ±5.5%，和明暗一起撑景深 */
+      };
+
+      function hseed(str, salt) {                /* 字符串 → [0,1) 的确定性伪随机 */
+        var h = 2166136261 ^ (salt | 0);
+        for (var i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        h ^= h >>> 15; h = Math.imul(h, 2246822507); h ^= h >>> 13;
+        return ((h >>> 0) % 1000003) / 1000003;
+      }
+
+      function orbitOf(name, i) {
+        var o = (PLANETS[name] && PLANETS[name].orbit) || {};
+        var r1 = hseed(name, 1), r2 = hseed(name, 2), r3 = hseed(name, 3);
+        return {
+          rx: o.rx != null ? o.rx : ORBIT.rx * (0.82 + r1 * 0.44),
+          ry: o.ry != null ? o.ry : ORBIT.ry * (0.76 + r2 * 0.52),
+          period: o.period != null ? o.period : ORBIT.period * (0.86 + r3 * 0.44),
+          /* 默认相位：按页面顺序均分 ＋ 一点名字带来的抖动，三颗不会齐步走 */
+          phase: o.phase != null ? o.phase : i * 2.10 + r1 * 1.30,
+          wob: o.wob != null ? o.wob : ORBIT.wob,
+          scale: o.scale != null ? o.scale : ORBIT.scale
+        };
+      }
+
+      function h3n(x, y, z, s) {
+        var n = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^
+                Math.imul(z | 0, 1274126177) ^ Math.imul(s | 0, 2654435761);
+        n = (n ^ (n >>> 13)) | 0;
+        n = Math.imul(n, 1274126177);
+        return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+      }
+
+      function vn3(x, y, z, s) {
+        var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+        var xf = x - xi, yf = y - yi, zf = z - zi;
+        var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+        var c000 = h3n(xi, yi, zi, s), c100 = h3n(xi + 1, yi, zi, s);
+        var c010 = h3n(xi, yi + 1, zi, s), c110 = h3n(xi + 1, yi + 1, zi, s);
+        var c001 = h3n(xi, yi, zi + 1, s), c101 = h3n(xi + 1, yi, zi + 1, s);
+        var c011 = h3n(xi, yi + 1, zi + 1, s), c111 = h3n(xi + 1, yi + 1, zi + 1, s);
+        var a0 = c000 + (c100 - c000) * u, a1 = c010 + (c110 - c010) * u;
+        var b0 = c001 + (c101 - c001) * u, b1 = c011 + (c111 - c011) * u;
+        var p0 = a0 + (a1 - a0) * v, p1 = b0 + (b1 - b0) * v;
+        return p0 + (p1 - p0) * w;
+      }
+
+      function fbm3(x, y, z, s) {
+        var a = 0, amp = 0.5, f = 1;
+        for (var i = 0; i < OCT; i++) {
+          a += amp * vn3(x * f, y * f, z * f, s + i * 37);
+          f *= 2.03; amp *= 0.5;
+        }
+        return a;
+      }
+
+      function mkTex(name) {
+        var cfg = PLANETS[name];
+        var cv = document.createElement('canvas');
+        cv.width = TW; cv.height = TH;
+        var g = cv.getContext('2d');
+        var img = g.createImageData(TW, TH);
+        var d = img.data;
+        var seed = 7;
+        for (var i = 0; i < name.length; i++) seed = (seed * 33 + name.charCodeAt(i)) | 0;
+        var B = cfg.base, L = cfg.land, mode = cfg.mode;
+        for (var y = 0; y < TH; y++) {
+          var phi = (y + 0.5) / TH * Math.PI;      /* 0 = 北极 */
+          var sy = Math.cos(phi), sr = Math.sin(phi);
+          for (var x = 0; x < TW; x++) {
+            var th = (x + 0.5) / TW * Math.PI * 2;
+            var sx = sr * Math.cos(th), sz = sr * Math.sin(th);
+            var t = 0, em = 0;
+            if (mode === 'bands') {
+              var war = fbm3(sx * 2.0, sy * 2.0, sz * 2.0, seed) - 0.5;
+              t = (Math.sin(phi * 11 + war * 7) * 0.5 + 0.5) * 0.70 +
+                  fbm3(sx * 6.0, sy * 6.0, sz * 6.0, seed + 11) * 0.30;
+              /* 一道亮斑当风暴眼（放在 x 中段，避开左右接缝） */
+              var dx = (x / TW - 0.63) * 3.1, dy = (y / TH - 0.54) * 6.2;
+              t += Math.exp(-(dx * dx + dy * dy) * 6) * 0.42;
+              if (t > 1) t = 1;
+            } else if (mode === 'clouds') {
+              t = fbm3(sx * 3.1, sy * 3.1, sz * 3.1, seed) * 0.72 +
+                  fbm3(sx * 7.2, sy * 7.2, sz * 7.2, seed + 5) * 0.28;
+              t = (t - 0.36) * 2.3;
+              if (t < 0) t = 0; else if (t > 1) t = 1;
+            } else {
+              t = fbm3(sx * 1.8, sy * 1.8, sz * 1.8, seed) * 0.78 +
+                  fbm3(sx * 5.6, sy * 5.6, sz * 5.6, seed + 3) * 0.22;
+              /* 灯火：只有很陡的噪声峰才点亮，且只落在陆块上。
+                 ⚠ 末尾那个 ×1.4 不是装饰。fbm3 的取值挤在 0.5 附近（实测 p99 才 0.703），
+                   所以 (lp - 阈值) 天然很小 —— 不加增益时 em 最大只有 0.36，
+                   成图上最亮的灯火也只有 r=68/255，暗色球面上一眼看不出是灯。
+                   参数量化：调参后最亮灯火 r=259，盘内约 1.3% 的像素被点亮。 */
+              var lp = fbm3(sx * 22, sy * 22, sz * 22, seed + 19);
+              if (lp > 0.64 && t > 0.44) {
+                em = Math.min(1, (lp - 0.64) / 0.10) * Math.min(1, (t - 0.44) / 0.12) * 1.4;
+                if (em > 1) em = 1;
+              }
+            }
+            var o = (y * TW + x) << 2;
+            d[o] = B[0] + (L[0] - B[0]) * t;
+            d[o + 1] = B[1] + (L[1] - B[1]) * t;
+            d[o + 2] = B[2] + (L[2] - B[2]) * t;
+            d[o + 3] = (em * 255) | 0;
+          }
+        }
+        g.putImageData(img, 0, 0);
+        return { d: d, cfg: cfg };
+      }
+
+      function buildTable(p) {
+        var S = p.size, R = S * 0.385;         /* 星球半径：四周留约 22% 给大气 */
+        var cx = S / 2, cy = S / 2, n = S * S;
+        p.kind = new Uint8Array(n);
+        p.rb = new Int32Array(n);              /* 行基址 = 行号 × TW */
+        p.cb = new Int32Array(n);              /* 列基址（未加自转偏移） */
+        p.sh = new Float32Array(n);            /* 漫反射 */
+        p.gw = new Float32Array(n);            /* 盘内边缘辉光 */
+        p.ew = new Float32Array(n);            /* 自发光权重（暗面更强） */
+        p.ga = new Float32Array(n);            /* 盘外大气 alpha */
+        var Lx = -0.40, Ly = -0.46, Lz = 0.79;
+        var m = 1 / Math.sqrt(Lx * Lx + Ly * Ly + Lz * Lz);
+        Lx *= m; Ly *= m; Lz *= m;
+        for (var y = 0; y < S; y++) {
+          var ny = (y + 0.5 - cy) / R;
+          for (var x = 0; x < S; x++) {
+            var i = y * S + x;
+            var nx = (x + 0.5 - cx) / R;
+            var rr = nx * nx + ny * ny;
+            if (rr > 1.62) continue;                      /* kind 0 = 完全透明 */
+            if (rr > 1) {                                 /* 盘外的大气 */
+              var q = 1 - (Math.sqrt(rr) - 1) / 0.62;
+              p.kind[i] = 2;
+              p.ga[i] = q * q * q * 0.55;
+              continue;
+            }
+            var nz = Math.sqrt(1 - rr);
+            var diff = nx * Lx + ny * Ly + nz * Lz;
+            if (diff < 0) diff = 0;
+            p.kind[i] = 1;
+            p.sh[i] = 0.13 + 0.99 * Math.pow(diff, 0.85);
+            p.gw[i] = Math.pow(1 - nz, 3.4) * 0.55;
+            p.ew[i] = (0.28 + 0.72 * (1 - diff)) / 255;
+            /* 绕屏幕上方的轴自转 → 经度整体平移，所以列基址可以预先算好 */
+            var lon = Math.atan2(nx, nz);
+            var cu = ((0.5 - lon / 6.283185307) * TW) | 0;
+            cu %= TW; if (cu < 0) cu += TW;
+            p.cb[i] = cu;
+            var ty = Math.acos(ny > 1 ? 1 : (ny < -1 ? -1 : ny)) / Math.PI;
+            var ri = (ty * TH) | 0;
+            if (ri > TH - 1) ri = TH - 1;
+            p.rb[i] = ri * TW;
+          }
+        }
+      }
+
+      function renderPlanet(p) {
+        var S = p.size, n = S * S, d = p.img.data, tex = p.tex.d;
+        var off = ((p.rot * TW) | 0) % TW; if (off < 0) off += TW;
+        var cfg = p.tex.cfg, A = cfg.atmo;
+        var AR = A[0] * 255, AG = A[1] * 255, AB = A[2] * 255;
+        var LR = cfg.lit[0], LG = cfg.lit[1], LB = cfg.lit[2];
+        var atmoA = cfg.atmoA;
+        for (var i = 0; i < n; i++) {
+          var k = p.kind[i];
+          if (k === 0) continue;                 /* 初始 alpha 就是 0，不必清 */
+          var o = i << 2;
+          if (k === 2) {
+            d[o] = AR; d[o + 1] = AG; d[o + 2] = AB;
+            d[o + 3] = (p.ga[i] * atmoA * 255) | 0;
+            continue;
+          }
+          var c = p.cb[i] + off; if (c >= TW) c -= TW;
+          var t = (p.rb[i] + c) << 2;
+          var sh = p.sh[i];
+          var r = tex[t] * sh, gg = tex[t + 1] * sh, b = tex[t + 2] * sh;
+          var em = tex[t + 3] * p.ew[i];
+          if (em > 0) {
+            var e255 = em * 255;
+            r += LR * e255; gg += LG * e255; b += LB * e255;
+          }
+          var gw = p.gw[i];
+          if (gw > 0) {
+            r += AR * gw; gg += AG * gw; b += AB * gw;
+          }
+          d[o] = r; d[o + 1] = gg; d[o + 2] = b; d[o + 3] = 255;
+        }
+        p.g.putImageData(p.img, 0, 0);
+      }
+
+      /* 把星球放到它轨道上的第 th 个位置。
+         位移用 transform：不触发重排，也就不会把 caption 挤动一分一毫。 */
+      function placePlanet(p, th) {
+        var el = p.orb;
+        if (!el) return;
+        var o = p.orbit;
+        var w = p.ow || p.cv.clientWidth || 240;
+        var x = Math.sin(th) + o.wob * Math.sin(2 * th + 0.6);
+        var y = -Math.cos(th);                   /* th=0 从轨道顶端起步 */
+        el.style.transform = 'translate3d(' + (x * o.rx * w).toFixed(2) + 'px,' +
+          (y * o.ry * w).toFixed(2) + 'px,0) scale(' + (1 + o.scale * y).toFixed(4) + ')';
+        /* 顶端（y<0）略小略暗 = 远，底端略大略亮 = 近。
+           缩放与明暗同向变化，景深才立得起来 —— 只改缩放的话会像在忽大忽小。 */
+        el.style.opacity = (0.87 + 0.13 * (y + 1) / 2).toFixed(3);
+      }
+
+      function sizePlanet(p) {
+        var w = p.cv.clientWidth || 240;
+        p.ow = w;                    /* 轨道半径按它换算，先记下来 */
+        var S = Math.max(120, Math.round(w * Math.min(P_DPR, window.devicePixelRatio || 1)));
+        if (S === p.size) return false;
+        p.size = S;
+        p.cv.width = S; p.cv.height = S;
+        p.img = p.g.createImageData(S, S);
+        buildTable(p);
+        return true;
+      }
+
+      var planets = [], pAcc = 0;
+      (function () {
+        var ns = document.querySelectorAll('.works .pcard');
+        for (var i = 0; i < ns.length; i++) {
+          var node = ns[i], name = node.getAttribute('data-planet');
+          if (!PLANETS[name]) continue;
+          var cv = node.querySelector('.orb canvas');
+          if (!cv || !cv.getContext) continue;
+          var p = {
+            node: node, cv: cv, orb: node.querySelector('.orb'),
+            g: cv.getContext('2d'), tex: mkTex(name),
+            rot: Math.random(), size: 0, ow: 0, on: true, img: null,
+            kind: null, rb: null, cb: null, sh: null, gw: null, ew: null, ga: null,
+            orbit: null, th: 0, hold: 0
+          };
+          /* 没写 orbit 的星球，参数由名字推导 —— 见上面「可拓展性」 */
+          p.orbit = orbitOf(name, planets.length);
+          p.th = p.orbit.phase;
+          /* 悬停 / 聚焦时把星球定住：这一刻悬停卡正在定位，星球再走卡就指空了。 */
+          (function (pp) {
+            node.addEventListener('pointerenter', function () { pp.hold = 1; });
+            node.addEventListener('pointerleave', function () { pp.hold = 0; });
+            node.addEventListener('focusin', function () { pp.hold = 1; });
+            node.addEventListener('focusout', function () { pp.hold = 0; });
+          })(p);
+          node.__planet = p;
+          sizePlanet(p);
+          placePlanet(p, p.th);
+          planets.push(p);
+        }
+        /* 滚出视口的星球不必每帧重画 */
+        if (planets.length && 'IntersectionObserver' in window) {
+          var io = new IntersectionObserver(function (es) {
+            for (var j = 0; j < es.length; j++) {
+              var q = es[j].target.__planet;
+              if (q) q.on = es[j].isIntersecting;
+            }
+          }, { rootMargin: '150px' });
+          for (i = 0; i < planets.length; i++) io.observe(planets[i].node);
+        }
+      })();
+
+      /* ---------- 悬停卡往哪边浮：由 JS 量出来 ----------
+
+         卡片默认浮在星球上方。但页面顶部有粘性顶栏（header.top，半透明 + 毛玻璃），
+         星球贴近顶边时卡片会钻到它底下，看起来像被切掉一截。
+         「上方还剩多少空间」CSS 判断不了 —— 它读不到另一个元素的实时高度，
+         所以在指针进入的那一刻量一次：
+           · 卡片是 absolute + visibility:hidden，读 offsetHeight 依然拿得到真实高度；
+           · 上方放不下 → 给 .pcard 加 info-below，由 CSS 翻到下方。 */
+
+      var pcards = document.querySelectorAll('.works .pcard');
+
+      function placeInfo(node) {
+        var info = node.querySelector('.info');
+        var orb = node.querySelector('.orb');
+        if (!info || !orb) return;
+        var bar = document.querySelector('.top');
+        var barB = bar ? bar.getBoundingClientRect().bottom : 0;
+        /* 卡片底边会压住星球顶部 30px（见 .info 的 100% - 30px），判据要扣掉 */
+        var need = (info.offsetHeight || 265) - 30;
+        /* ⚠ 量的是 .pcard 自己的布局顶边，不是星球的视觉顶边。星球被轨道带着
+           translate/scale 之后，两者会差出 ±10px —— 而卡片是锚在布局框上的，
+           读视觉位置就等于把这条防线悄悄放松 10px。 */
+        if (node.getBoundingClientRect().top - need < barB + 10) node.classList.add('info-below');
+        else node.classList.remove('info-below');
+      }
+
+      (function () {
+        for (var i = 0; i < pcards.length; i++) {
+          (function (node) {
+            var go = function () { placeInfo(node); };
+            node.addEventListener('pointerenter', go);
+            node.addEventListener('focusin', go);
+          })(pcards[i]);
+        }
+        /* 悬停状态下滚动，可用空间会变，跟着重算 */
+        window.addEventListener('scroll', function () {
+          for (var j = 0; j < pcards.length; j++) {
+            if (pcards[j].matches(':hover')) placeInfo(pcards[j]);
+          }
+        }, { passive: true });
+      })();
+
       function loop(now) {
         var dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
         last = now;
         phase += dt;
         stepCards(dt);
+
+        /* 轨道：每帧只写两个 CSS 属性（transform / opacity），不触发重排，
+           代价可以忽略，所以跑满帧率 —— 若也按 15fps 走，位移会一顿一顿。
+           贴图重绘仍旧按 P_STEP 的 ~15fps，两件事分开管。 */
+        for (var oi = 0; oi < planets.length; oi++) {
+          var op = planets[oi];
+          if (!op.on) continue;
+          /* 拖拽中让星球像实体一样跟手，不要自己在里面飘 */
+          if (!op.hold && !op.node.classList.contains('dragging')) {
+            op.th += dt / op.orbit.period * Math.PI * 2;
+          }
+          placePlanet(op, op.th);
+        }
+
+        if (planets.length) {
+          pAcc += dt;
+          if (pAcc >= P_STEP) {
+            for (var q = 0; q < planets.length; q++) {
+              var pl = planets[q];
+              if (!pl.on) continue;
+              pl.rot += pl.tex.cfg.spin * pAcc;
+              if (pl.rot > 1) pl.rot -= 1;
+              renderPlanet(pl);
+            }
+            pAcc = 0;
+          }
+        }
+
         if (ctx) {
           ctx.clearRect(0, 0, W, H);
           drawSky(dt);
@@ -1313,6 +1784,10 @@
       }
 
       function boot() {
+        var changed = false;
+        for (var i = 0; i < planets.length; i++) {
+          if (sizePlanet(planets[i])) changed = true;
+        }
         if (reduce()) {
           if (raf) { cancelAnimationFrame(raf); raf = 0; }
           hasPtr = false;
@@ -1320,9 +1795,17 @@
             ctx.clearRect(0, 0, W, H);
             drawSky(0);                  /* 只画一帧：不漂移、不闪烁、无透镜 */
           }
-        } else if (!raf) {
-          last = 0;
-          raf = requestAnimationFrame(loop);
+          /* 星球也只画一帧、并退回原位：降级是「不动」，不是「动得更慢」 */
+          for (i = 0; i < planets.length; i++) {
+            if (planets[i].orb) {
+              planets[i].orb.style.transform = '';
+              planets[i].orb.style.opacity = '';
+            }
+            renderPlanet(planets[i]);
+          }
+        } else {
+          if (changed) { for (i = 0; i < planets.length; i++) renderPlanet(planets[i]); }
+          if (!raf) { last = 0; pAcc = 0; raf = requestAnimationFrame(loop); }
         }
       }
 
@@ -1333,7 +1816,7 @@
       document.addEventListener('pointerleave', function () { hasPtr = false; });
       window.addEventListener('blur', function () { hasPtr = false; });
 
-      window.addEventListener('resize', function () { resize(); if (reduce()) boot(); });
+      window.addEventListener('resize', function () { resize(); boot(); });
 
       document.addEventListener('visibilitychange', function () {
         if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
