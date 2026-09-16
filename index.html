@@ -766,6 +766,54 @@
       .planet { width: clamp(72px, 13.5vw, 104px); pointer-events: none; }
       .planet .info { display: none; }
     }
+
+    /* ============ BGM 播放器（右下角） ============ */
+    #bgm { position: fixed; right: 18px; bottom: 18px; z-index: 60; }
+    #bgm-play {
+      display: grid; place-items: center;
+      width: 52px; height: 52px; border-radius: 50%;
+      border: 1px solid rgba(217, 164, 65, 0.45);
+      background: rgba(10, 11, 15, 0.72);
+      color: #d9a441; font-size: 21px; line-height: 1;
+      cursor: pointer; padding: 0; user-select: none;
+      -webkit-user-select: none;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(217, 164, 65, 0.08);
+      transition: border-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    #bgm-play:hover { border-color: rgba(217, 164, 65, 0.85); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55); transform: translateY(-1px); }
+    #bgm-play:focus-visible { outline: 2px solid #d9a441; outline-offset: 3px; }
+    #bgm-play .note { transition: opacity 0.2s; }
+    #bgm-play .pause { display: none; }
+    #bgm-play[data-playing="1"] .note { display: none; }
+    #bgm-play[data-playing="1"] .pause { display: block; }
+    /* 播放中：音符符号原地旋转 + 外圈音波 */
+    #bgm-play[data-playing="1"] { border-color: rgba(217, 164, 65, 0.85); color: #e8c377; }
+    #bgm-play[data-playing="1"] .note-spin { animation: bgm-spin 5s linear infinite; display: inline-block; }
+    #bgm-play[data-playing="1"] .wave {
+      position: absolute; inset: -6px; border-radius: 50%;
+      border: 1px solid rgba(217, 164, 65, 0.35);
+      animation: bgm-wave 2.4s ease-out infinite;
+      pointer-events: none;
+    }
+    #bgm-play[data-playing="1"] .wave.w2 { animation-delay: 1.2s; }
+    @keyframes bgm-spin { to { transform: rotate(360deg); } }
+    @keyframes bgm-wave {
+      0% { transform: scale(0.9); opacity: 0.9; }
+      100% { transform: scale(1.55); opacity: 0; }
+    }
+    #bgm-play[data-broken="1"] { opacity: 0.45; cursor: default; }
+    #bgm-play[data-broken="1"]:hover { transform: none; }
+    #bgm audio { display: none; }
+    /* 触屏按钮够大、别贴边太死 */
+    @media (max-width: 640px) {
+      #bgm { right: 12px; bottom: 12px; }
+      #bgm-play { width: 48px; height: 48px; font-size: 19px; }
+    }
+    /* 减弱动态效果：保留播放功能，去掉旋转与音波动画 */
+    @media (prefers-reduced-motion: reduce) {
+      #bgm-play[data-playing="1"] .note-spin { animation: none; }
+      #bgm-play[data-playing="1"] .wave { animation: none; opacity: 0; }
+    }
   </style>
   <noscript>
     <style>.rv { opacity: 1 !important; transform: none !important; }</style>
@@ -1030,6 +1078,18 @@
     </div>
   </footer>
 
+  <!-- BGM：右下角播放按钮，首次点击后循环播放。音频随页面懒加载。 -->
+  <div id="bgm">
+    <button id="bgm-play" type="button" aria-label="播放背景音乐（Always Together With You – Spiritualized）" aria-pressed="false">
+      <span class="wave" aria-hidden="true"></span>
+      <span class="wave w2" aria-hidden="true"></span>
+      <span class="note note-spin" aria-hidden="true">♪</span>
+      <span class="pause" aria-hidden="true">❚❚</span>
+    </button>
+    <audio id="bgm-audio" preload="none" loop crossorigin="anonymous"
+      src="bgm/always-together-with-you.mp3"></audio>
+  </div>
+
   <script>
     // 页脚年份
     document.getElementById('y').textContent = new Date().getFullYear();
@@ -1058,6 +1118,44 @@
           if (r.top < window.innerHeight) items[k].classList.add('in');
         }
       }, 1500);
+    })();
+  </script>
+
+  <script>
+    /* BGM：右下角按钮，点击播放/暂停，循环。首次点击才加载音频；
+       若浏览器拦了自动播放（session 内开过音乐则试着静音续播），
+       失败就保持待命，等下一次手势。文件缺失/解码失败时按钮变灰。 */
+    (function () {
+      var btn = document.getElementById('bgm-play');
+      var au = document.getElementById('bgm-audio');
+      if (!btn || !au || !('HTMLAudioElement' in window)) return;
+
+      var playing = 0, broken = 0;
+      function paint() {
+        btn.setAttribute('data-playing', playing ? '1' : '0');
+        btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+        btn.setAttribute('aria-label', playing ? '暂停背景音乐' : '播放背景音乐（Always Together With You – Spiritualized）');
+      }
+      function fail() { broken = 1; btn.setAttribute('data-broken', '1'); }
+
+      btn.addEventListener('click', function () {
+        if (broken) return;
+        if (playing) {
+          au.pause(); playing = 0; paint();
+          return;
+        }
+        au.loop = true;
+        var p = au.play();
+        if (p && p.catch) p.catch(function () { /* 手势内仍失败：标记损坏 */ fail(); });
+        playing = 1; paint();
+      });
+      au.addEventListener('playing', function () { playing = 1; paint(); });
+      au.addEventListener('pause', function () { if (playing) { playing = 0; paint(); } });
+      au.addEventListener('error', function () { fail(); });
+      /* 播放中被切走（如音频被中断）也复位按钮 */
+      au.addEventListener('ended', function () { playing = 0; paint(); });
+
+      paint();
     })();
   </script>
 
