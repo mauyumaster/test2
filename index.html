@@ -1143,33 +1143,42 @@
       function fail() { broken = 1; btn.setAttribute('data-broken', '1'); }
 
       /* 音量包络：从当前音量向 target 匀速渐变，sec 秒后回调 done。
-         单条 rAF 循环；新目标会取消上一次渐变，避免入/出互相踩。 */
+         用 setInterval(16ms) 驱动而非 rAF —— 后台/无头页面 rAF 回调
+         不触发，音量会停在原地；新目标会取消上一次渐变，避免入/出互踩。 */
       function gainTo(target, sec, done) {
         if (broken) return;
-        if (fade) { cancelAnimationFrame(fade); fade = 0; }
+        if (fade) { clearInterval(fade); fade = 0; }
         var from = au.volume;
         if (from === target) { if (done) done(); return; }
         var t0 = performance.now();
-        (function step(ts) {
-          var k = Math.min(1, (ts - t0) / (sec * 1000));
+        fade = setInterval(function () {
+          var k = Math.min(1, (performance.now() - t0) / (sec * 1000));
           au.volume = from + (target - from) * k;
-          if (k < 1) { fade = requestAnimationFrame(step); }
-          else { fade = 0; if (done) done(); }
-        })(t0);
+          if (k >= 1) { clearInterval(fade); fade = 0; if (done) done(); }
+        }, 16);
       }
 
-      /* 首次交互：解除静音预播，开声渐入（只做一次） */
-      var opened = false;
-      function open() {
+      /* 首次交互：解除静音预播并真正开声（预播可能被浏览器拦下、音频仍
+         停在 paused —— 必须在这里调 play()，只解静音会「按钮亮了却没声」）。
+         onlyBtn：这次交互落在按钮上时置位，click 处理器据此识别「开声那
+         一下」，不会把它误判成暂停；落在页面其他地方则 open 直接完成，
+         之后按钮点击正常走播放/暂停。 */
+      var opened = 0;
+      function open(e) {
         if (opened || broken) return;
-        opened = true;
+        var onBtn = !!(e && e.target && e.target.closest && e.target.closest('#bgm-play'));
         window.removeEventListener('pointerdown', open, true);
         window.removeEventListener('keydown', open, true);
         window.removeEventListener('touchstart', open, true);
         au.muted = false;
         preplay = 0;
+        if (au.paused) {
+          var p = au.play();
+          if (p && p.catch) p.catch(function () { fail(); });
+        }
         if (!playing) { playing = 1; paint(); }
         gainTo(VOL, FADE_IN);
+        opened = onBtn ? 1 : -1;
       }
       window.addEventListener('pointerdown', open, true);
       window.addEventListener('keydown', open, true);
@@ -1177,6 +1186,13 @@
 
       btn.addEventListener('click', function () {
         if (broken) return;
+        if (opened === 1) {
+          /* 首次交互就是这次点击（open 由按钮自己的 pointerdown 触发）：
+             不再把「开声」误判成「暂停」。 */
+          opened = 0;
+          return;
+        }
+        opened = 0;
         if (playing) {
           /* 暂停：先渐出到 0，真正 pause 留在回调里 */
           gainTo(0, FADE_OUT, function () { au.pause(); });
