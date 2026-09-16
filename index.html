@@ -688,6 +688,28 @@
        别在这里加 transform / opacity / transition 会跟它打架。 */
     .planet .info { z-index: 6; }
 
+    /* 星球正下方的作品名小字：常驻、随星球一起动。只读装饰、不接指针，
+       不与悬停卡（.info）打架——卡默认浮在球上方，这条永远在球下方。 */
+    .planet .pname {
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 10px);
+      transform: translateX(-50%);
+      z-index: 4;
+      width: max-content;
+      max-width: 168px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      line-height: 1.5;
+      letter-spacing: .03em;
+      color: var(--fg-2);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, .9), 0 0 12px rgba(0, 0, 0, .7);
+      pointer-events: none;
+      transition: opacity .2s var(--ease);
+    }
+
     .planet.show-info .info,
     .planet:focus-visible .info {
       opacity: 1;
@@ -696,6 +718,7 @@
     }
 
     .planet.dragging .info { opacity: 0 !important; visibility: hidden !important; }
+    .planet.dragging .pname { opacity: 0; }
 
     /* 上方放不下时翻到下方；贴近左右边缘时翻到星球两侧（JS 加类） */
     .planet.info-below .info {
@@ -765,6 +788,7 @@
          900px 处 13.5vw=121>104 被上限截住，正好与桌面的 104px 接上。 */
       .planet { width: clamp(72px, 13.5vw, 104px); pointer-events: none; }
       .planet .info { display: none; }
+      .planet .pname { display: none; }
     }
 
     /* ============ BGM 播放器（右下角） ============ */
@@ -847,6 +871,7 @@
         <span class="shot"><img src="midnight-store/preview.png" width="1258" height="702" alt="便利店店内视角的预览" loading="lazy" decoding="async"></span>
         <span class="info-b"><b>凌晨两点零七分 · 便利店</b><em>琥珀灯火下的一间店。每件东西都会告诉你它离你有多远。</em></span>
       </span>
+      <span class="pname">凌晨两点零七分 · 便利店</span>
     </a>
     <a class="planet" data-planet="rain" href="rainy-store/" aria-label="雨夜便利店街角">
       <canvas aria-hidden="true"></canvas>
@@ -854,6 +879,7 @@
         <span class="shot"><img src="rainy-store/preview.png" width="1600" height="1000" alt="雨夜街角微缩模型的预览" loading="lazy" decoding="async"></span>
         <span class="info-b"><b>雨夜便利店街角</b><em>一个能拿在手里转的摆件，雨下不完。</em></span>
       </span>
+      <span class="pname">雨夜便利店街角</span>
     </a>
     <a class="planet" data-planet="galaxy" href="web/indexdemo.html" aria-label="星系数据浏览器">
       <canvas aria-hidden="true"></canvas>
@@ -861,6 +887,7 @@
         <span class="shot"><img src="shots/galaxy.png" width="1418" height="802" alt="星系数据浏览器界面的预览" loading="lazy" decoding="async"></span>
         <span class="info-b"><b>星系数据浏览器</b><em>九千多个节点组成的星系，可以飞进去。</em></span>
       </span>
+      <span class="pname">星系数据浏览器</span>
     </a>
   </div>
 
