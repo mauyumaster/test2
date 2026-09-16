@@ -770,30 +770,41 @@
     /* ============ BGM 播放器（右下角） ============ */
     #bgm { position: fixed; right: 18px; bottom: 18px; z-index: 60; }
     #bgm-play {
-      display: grid; place-items: center;
+      position: relative; display: grid; place-items: center;
       width: 52px; height: 52px; border-radius: 50%;
       border: 1px solid rgba(217, 164, 65, 0.45);
       background: rgba(10, 11, 15, 0.72);
       color: #d9a441; font-size: 21px; line-height: 1;
       cursor: pointer; padding: 0; user-select: none;
-      -webkit-user-select: none;
+      -webkit-user-select: none; overflow: hidden;
       box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(217, 164, 65, 0.08);
       transition: border-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
     }
     #bgm-play:hover { border-color: rgba(217, 164, 65, 0.85); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55); transform: translateY(-1px); }
     #bgm-play:focus-visible { outline: 2px solid #d9a441; outline-offset: 3px; }
-    #bgm-play .note { transition: opacity 0.2s; }
+    /* 专辑封面：填满按钮圆形面，播放时随容器一同旋转 */
+    #bgm-play .cover {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; border-radius: 50%;
+      display: block; pointer-events: none;
+    }
+    #bgm-play[data-playing="1"] .cover { animation: bgm-spin 6s linear infinite; }
+    /* 状态符号叠在封面中心：暂停显示音符，播放显示 ❚❚ */
+    #bgm-play .note, #bgm-play .pause {
+      position: relative; z-index: 2; pointer-events: none;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85), 0 0 10px rgba(0, 0, 0, 0.6);
+      transition: opacity 0.2s;
+    }
     #bgm-play .pause { display: none; }
     #bgm-play[data-playing="1"] .note { display: none; }
     #bgm-play[data-playing="1"] .pause { display: block; }
-    /* 播放中：音符符号原地旋转 + 外圈音波 */
+    /* 播放中：外圈音波 */
     #bgm-play[data-playing="1"] { border-color: rgba(217, 164, 65, 0.85); color: #e8c377; }
-    #bgm-play[data-playing="1"] .note-spin { animation: bgm-spin 5s linear infinite; display: inline-block; }
     #bgm-play[data-playing="1"] .wave {
       position: absolute; inset: -6px; border-radius: 50%;
       border: 1px solid rgba(217, 164, 65, 0.35);
       animation: bgm-wave 2.4s ease-out infinite;
-      pointer-events: none;
+      pointer-events: none; z-index: 3;
     }
     #bgm-play[data-playing="1"] .wave.w2 { animation-delay: 1.2s; }
     @keyframes bgm-spin { to { transform: rotate(360deg); } }
@@ -809,9 +820,9 @@
       #bgm { right: 12px; bottom: 12px; }
       #bgm-play { width: 48px; height: 48px; font-size: 19px; }
     }
-    /* 减弱动态效果：保留播放功能，去掉旋转与音波动画 */
+    /* 减弱动态效果：保留播放功能，去掉封面旋转与音波动画 */
     @media (prefers-reduced-motion: reduce) {
-      #bgm-play[data-playing="1"] .note-spin { animation: none; }
+      #bgm-play[data-playing="1"] .cover { animation: none; }
       #bgm-play[data-playing="1"] .wave { animation: none; opacity: 0; }
     }
   </style>
@@ -1078,11 +1089,12 @@
     </div>
   </footer>
 
-  <!-- BGM：右下角播放按钮，首次点击后循环播放。音频随页面懒加载。 -->
+  <!-- BGM：右下角播放器，封面即按钮面。播放时封面随圆形容器一同旋转。 -->
   <div id="bgm">
     <button id="bgm-play" type="button" aria-label="播放背景音乐（Always Together With You – Spiritualized）" aria-pressed="false">
       <span class="wave" aria-hidden="true"></span>
       <span class="wave w2" aria-hidden="true"></span>
+      <img class="cover" src="bgm/cover.png" width="1200" height="1200" alt="" aria-hidden="true" decoding="async">
       <span class="note note-spin" aria-hidden="true">♪</span>
       <span class="pause" aria-hidden="true">❚❚</span>
     </button>
