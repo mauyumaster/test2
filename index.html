@@ -1122,15 +1122,19 @@
   </script>
 
   <script>
-    /* BGM：右下角按钮，点击播放/暂停，循环。首次点击才加载音频；
-       若浏览器拦了自动播放（session 内开过音乐则试着静音续播），
-       失败就保持待命，等下一次手势。文件缺失/解码失败时按钮变灰。 */
+    /* BGM：右下角按钮，点击播放/暂停，循环。
+       默认播放：进页面即尝试「静音预播」（浏览器允许无手势静音播放），
+       用户第一次与页面交互（点击/触摸/按键）的瞬间开声并渐入到默认音量。
+       音量：默认 0.30；播放渐入 1.5s、暂停渐出 1s（渐出结束才真正 pause）。
+       文件缺失/解码失败时按钮变灰。 */
     (function () {
       var btn = document.getElementById('bgm-play');
       var au = document.getElementById('bgm-audio');
       if (!btn || !au || !('HTMLAudioElement' in window)) return;
 
-      var playing = 0, broken = 0;
+      var VOL = 0.30, FADE_IN = 1.5, FADE_OUT = 1.0;
+      var playing = 0, broken = 0, fade = 0, preplay = 0;
+
       function paint() {
         btn.setAttribute('data-playing', playing ? '1' : '0');
         btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
@@ -1138,22 +1142,72 @@
       }
       function fail() { broken = 1; btn.setAttribute('data-broken', '1'); }
 
+      /* 音量包络：从当前音量向 target 匀速渐变，sec 秒后回调 done。
+         单条 rAF 循环；新目标会取消上一次渐变，避免入/出互相踩。 */
+      function gainTo(target, sec, done) {
+        if (broken) return;
+        if (fade) { cancelAnimationFrame(fade); fade = 0; }
+        var from = au.volume;
+        if (from === target) { if (done) done(); return; }
+        var t0 = performance.now();
+        (function step(ts) {
+          var k = Math.min(1, (ts - t0) / (sec * 1000));
+          au.volume = from + (target - from) * k;
+          if (k < 1) { fade = requestAnimationFrame(step); }
+          else { fade = 0; if (done) done(); }
+        })(t0);
+      }
+
+      /* 首次交互：解除静音预播，开声渐入（只做一次） */
+      var opened = false;
+      function open() {
+        if (opened || broken) return;
+        opened = true;
+        window.removeEventListener('pointerdown', open, true);
+        window.removeEventListener('keydown', open, true);
+        window.removeEventListener('touchstart', open, true);
+        au.muted = false;
+        preplay = 0;
+        if (!playing) { playing = 1; paint(); }
+        gainTo(VOL, FADE_IN);
+      }
+      window.addEventListener('pointerdown', open, true);
+      window.addEventListener('keydown', open, true);
+      window.addEventListener('touchstart', open, true);
+
       btn.addEventListener('click', function () {
         if (broken) return;
         if (playing) {
-          au.pause(); playing = 0; paint();
+          /* 暂停：先渐出到 0，真正 pause 留在回调里 */
+          gainTo(0, FADE_OUT, function () { au.pause(); });
+          playing = 0; paint();
           return;
         }
-        au.loop = true;
-        var p = au.play();
-        if (p && p.catch) p.catch(function () { /* 手势内仍失败：标记损坏 */ fail(); });
+        if (au.paused) {
+          /* 预播被浏览器拦下后的手动启动（按钮点击本身算手势） */
+          au.muted = false;
+          au.volume = 0;
+          au.loop = true;
+          preplay = 0;
+          var p = au.play();
+          if (p && p.catch) p.catch(function () { fail(); });
+        }
         playing = 1; paint();
+        gainTo(VOL, FADE_IN);
       });
-      au.addEventListener('playing', function () { playing = 1; paint(); });
-      au.addEventListener('pause', function () { if (playing) { playing = 0; paint(); } });
+      au.addEventListener('playing', function () { if (!preplay) { playing = 1; paint(); } });
+      au.addEventListener('pause', function () { if (playing && !preplay) { playing = 0; paint(); } });
       au.addEventListener('error', function () { fail(); });
       /* 播放中被切走（如音频被中断）也复位按钮 */
       au.addEventListener('ended', function () { playing = 0; paint(); });
+
+      /* 静音预播：浏览器无手势也允许静音播放；播放起来即挂起等首次交互 */
+      au.loop = true;
+      au.muted = true;
+      au.volume = 0;
+      preplay = 1;
+      var pp = au.play();
+      if (pp && pp.catch) pp.catch(function () { preplay = 0; /* 被拦：走按钮点击路径 */ });
 
       paint();
     })();
